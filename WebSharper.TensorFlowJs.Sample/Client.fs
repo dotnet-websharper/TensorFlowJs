@@ -23,7 +23,7 @@ module Client =
     let nested2dArray = [|[|1; 2|]; [|3; 4|]|]
     let shape = [|2; 2|]
 
-    Tf.Tensor2d(nested2dArray, shape) 
+    (*Tf.Tensor2d(nested2dArray, shape) *)
 
     [<SPAEntryPoint>]
     let Main () =
