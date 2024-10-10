@@ -7,6 +7,15 @@ open WebSharper.InterfaceGenerator
 module Definition =
     [<AutoOpen>]
     module Types = 
+        let FloatOrFloatArray = T<float> + T<float[]>
+        let StringOrInt = T<string> + T<int>
+        let NumberTypedArrayOrObjArray = T<obj[]> + T<Uint32Array> + T<Int32Array> + T<Float32Array>
+        let IteratorResult = T<obj>
+        let Iterator = T<obj>
+        let BackendValues = T<Uint8Array> + T<Uint8Array[]> + T<Int32Array> + T<Float32Array>
+        let DataValues = T<Float32Array> + T<Int32Array> + T<Uint8Array> + T<string[]>
+        let FlagValue = T<float> + T<bool> + T<string> 
+        let Flags = T<obj[]>
         let DataId = T<obj>
         let Kwargs = T<obj[]>
         let DataType = T<string>
@@ -15,8 +24,10 @@ module Definition =
         let ShapeOrArray = Shape + !|Shape
         let StringOrArray = T<string> + T<string[]>
         let IntOrIntArray = T<int> + T<int[]>
+        let StringOrIntOrIntArray = T<string> + IntOrIntArray
         let TypedArray = T<Uint8Array> + T<Uint8ClampedArray> + T<Int32Array> + T<Float32Array>
-        let TensorLike = TypedArray + T<int> + T<bool> + T<string> + T<int[]>
+        let FlattenType = T<int> + T<bool> + T<string> + T<Promise<int>> + TypedArray
+        let TensorLike = TypedArray + T<int> + T<bool> + T<string> + T<int[]> + T<float[]>
         let ScalarLike = T<int> + T<bool> + T<string> + T<Uint8Array>
         let TensorLike1D = TypedArray + T<int[]> + T<bool[]> + T<string[]> + T<Uint8Array[]>
         let TensorLike2D = TypedArray + T<int[]> + T<int[][]> + T<bool[]> + T<bool[][]> + T<string[]> + T<string[][]> + T<Uint8Array[]> + T<Uint8Array[][]>
@@ -31,6 +42,14 @@ module Definition =
 
     [<AutoOpen>]
     module Enumuration = 
+        let Reduction = 
+            Pattern.EnumStrings "Reduction" [
+                "NONE"
+                "MEAN"
+                "SUM"
+                "SUM_BY_NONZERO_WEIGHTS"
+            ]
+
         let ActivationIdentifier =
             Pattern.EnumStrings "ActivationIdentifier" [
                 "elu"
@@ -114,6 +133,64 @@ module Definition =
 
     [<AutoOpen>]
     module Interface = 
+        let MemoryInfo = 
+            Pattern.Config "MemoryInfo" {
+                Required = [
+                    "numTensors", T<int>
+                    "numDataBuffers", T<int>
+                    "numBytes", T<int>
+                    "reasons", T<string[]>
+                ]
+                Optional = [
+                    "unreliable", T<bool>
+                ]
+            }
+
+        let BackendTimingInfo = 
+            Pattern.Config "BackendTimingInfo" {
+                Required = [
+                    "kernelMs", T<int> + T<obj>
+                ]
+                Optional = [
+                    "getExtraProfileInfo", T<string>
+                ]
+            }
+
+        let KernelInfo = 
+            Pattern.Config "KernelInfo" {
+                Required = [
+                    "name", T<string>
+                    "bytesAdded", T<int>
+                    "totalBytesSnapshot", T<int>
+                    "tensorsAdded", T<int>
+                    "totalTensorsSnapshot", T<int>
+                    "inputShapes", T<int[][]>
+                    "outputShapes", T<int[][]>
+                    "kernelTimeMs", T<int> + T<obj> + T<Promise<_>>[T<int> + T<obj>]
+                    "extraInfo", T<string> + T<Promise<string>>
+                ]
+                Optional = []
+            }
+
+        let TimingInfo = 
+            Pattern.Config "TimingInfo" {
+                Required = [
+                    "wallMs", T<int>
+                ]
+                Optional = []
+            }
+            |=> Inherits BackendTimingInfo
+
+        let Memory = 
+            Pattern.Config "Memory" {
+                Required = [
+                    "unreliable", T<bool>
+                ]
+                Optional = [
+                    "reasons", T<string []>
+                ]
+            }
+
         let SingleValueMap =
             Pattern.Config "SingleValueMap" {
                 Required = []
@@ -274,7 +351,6 @@ module Definition =
                     "initializerSignature", T<obj>
                 ]
         }
-
 
         let SaveResult = 
             Pattern.Config "SaveResult" {
@@ -527,8 +603,7 @@ module Definition =
             |+> Instance [
                 "getClassName" => T<unit> ^-> T<string>
                 "getConfig" => T<unit> ^-> ConfigDict
-            ]
-        (*let FromConfigMethod = SerializableConstructor[T]?cls * ConfigDict?config ^-> T*)       
+            ]    
 
         Serializable 
         |+> Static [
@@ -558,34 +633,76 @@ module Definition =
                 Optional = []
             }
 
+        let MaxNormArgs = 
+            Pattern.Config "MaxNormArgs" {
+                Required = []
+                Optional = [
+                    "maxValue", T<int>
+                    "axis", T<int>
+                ]
+            }
+
+        let MinMaxNormArgs = 
+            Pattern.Config "MinMaxNormArgs" {
+                Required = []
+                Optional = [
+                    "minValue", T<int>
+                    "maxValue", T<int>
+                    "axis", T<int>
+                ]
+            }
+
+        let UnitNormArgs = 
+            Pattern.Config "UnitNormArgs" {
+                Required = []
+                Optional = [
+                    "axis", T<int>
+                ]
+            }
+
+        let ConstantArgs = 
+            Pattern.Config "ConstantArgs" {
+                Required = []
+                Optional = [
+                    "value", T<int>
+                ]
+            }
+
+        let GlorotNormalArgs = 
+            Pattern.Config "GlorotNormalArgs" {
+                Required = []
+                Optional = [
+                    "seed", T<int>
+                ]
+            }
+
     [<AutoOpen>]
     module TensorFlow = 
-        let TFTensor =
+        let Tensor =
             Class "Tf.Tensor"
             |=> Inherits TensorInfo
             |+> Static [
-                Constructor (Shape?shape * T<string>?dtype * DataId?dataId * T<int>?id)
+                Constructor (Shape?shape * DataType?dtype * DataId?dataId * T<int>?id)
             ]
             |+> Instance [
                 "id" =? T<int> 
                 "dataId" =? DataId 
                 "shape" =? Shape
                 "size" =? T<int> 
-                "dtype" =? T<string>
+                "dtype" =? DataType
                 "rankType" =? Rank 
                 "kept" =@ T<bool>
                 "scopeId" =@ T<int> 
-                "kerasMask" =? !? TSelf 
+                "kerasMask" =@ !? TSelf 
                 "strides" =? T<int[]> 
             ] 
 
-        let TensorAndArrayType = TFTensor + TypedArray + T<float[]>
-        let LossOrMetricFn = TFTensor?yTrue * TFTensor?yPred ^-> TFTensor
+        let LossOrMetricFn = Tensor?yTrue * Tensor?yPred ^-> Tensor
 
         let GPUData =
             Pattern.Config "GPUData" {
                 Required = [
-                    "tensorRef", TFTensor.Type
+                    "tensorRef", Tensor.Type
                 ]
                 Optional = [
                     "texture", T<WebGL.Texture>
@@ -594,10 +711,10 @@ module Definition =
                 ]
             }
 
-        let TFTensorBuffer = 
+        let TensorBuffer = 
             Class "Tf.TensorBuffer" 
             |+> Static [
-                Constructor (Shape?shape * T<string>?dtype * !?DataTypeMap?values)
+                Constructor (Shape?shape * DataType?dtype * !?DataTypeMap?values)
             ]
             |+> Instance [       
                 "size" =@ T<int>
@@ -605,47 +722,53 @@ module Definition =
                 "strides" =@ T<int[]>
                 "values" =@ DataTypeMap
 
-                "set" => SingleValueMap?value * (!|T<int>)?locs ^-> T<unit>
-                "get" => (!|T<int>)?locs ^-> SingleValueMap
-                "toTensor" => T<unit> ^-> TFTensor
+                "set" => SingleValueMap?value * T<float[]>?locs ^-> T<unit>
+                "get" => T<float[]>?locs ^-> SingleValueMap
+                "locToIndex" => T<float[]>?locs ^-> T<float>
+                "indexToLoc" => T<float>?index ^-> T<float[]>
+                "toTensor" => T<unit> ^-> Tensor
             ]
 
-        let TFVariable = 
+        let Variable = 
             Class "Tf.Variable"
-            |=> Inherits TFTensor
+            |=> Inherits Tensor
             |+> Static [
-                Constructor (TFTensor?initialValue * T<bool>?trainable * T<string>?name * T<int>?tensorId)
+                Constructor (Tensor?initialValue * T<bool>?trainable * T<string>?name * T<int>?tensorId)
             ]
             |+> Instance [
                 "name" =@ T<string>
 
-                "assign" => TFTensor?newValue ^-> T<unit>
+                "assign" => Tensor?newValue ^-> T<unit>
             ]
 
-        TFTensor 
+        Tensor 
         |+> Instance [
-            "buffer" => T<unit> ^-> T<Promise<_>>[TFTensorBuffer]
-            "bufferSync" => T<unit> ^-> TFTensorBuffer
-            "array" => T<unit> ^-> T<Promise<_>>[!|T<int>]
-            "arraySync" => T<unit> ^-> !|T<int>
+            "buffer" => T<unit> ^-> T<Promise<_>>[TensorBuffer]
+            "bufferSync" => T<unit> ^-> TensorBuffer
+            "array" => T<unit> ^-> T<Promise<_>>[!|T<float>]
+            "arraySync" => T<unit> ^-> !|T<float>
             "data" => T<unit> ^-> T<Promise<_>>[DataTypeMap]
             "dataToGPU" => !?DataToGPUOptions?options ^-> GPUData
             "dataSync" => T<unit> ^-> DataTypeMap
+            "bytes" => T<unit> ^-> T<Promise<_>>[T<Uint8Array[]> + T<Uint8Array>]
             "dispose" => T<unit> ^-> T<unit>
+            "throwIfDisposed" => T<unit> ^-> T<unit>
             "print" => !?T<bool>?verbose ^-> T<unit>
-            "clone" => T<unit> ^-> TSelf
+            "clone" => TSelf?this ^-> TSelf
             "toString" => !?T<bool>?verbose ^-> T<string>
+            "cast" => DataType?dtype ^-> TSelf
+            "variable" => T<bool>?trainable * !?T<string>?name * !?DataType?dtype ^-> Variable
         ] |> ignore
 
-        let TensorOrArray = TFTensor + !| TFTensor
-        let TensorOrArrayOrMap = TFTensor + !| TFTensor + T<obj>
-        let UnitToTensorFunc = T<unit> ^-> TFTensor
+        let TensorOrTensorArray = Tensor + !| Tensor
+        let TensorOrArrayOrMap = Tensor + !| Tensor + T<obj>
+        let UnitToTensorFunc = T<unit> ^-> Tensor
 
         let NamedTensor = 
             Pattern.Config "NamedTensor" {
                 Required = [
                     "name", T<string>
-                    "tensor", TFTensor.Type
+                    "tensor", Tensor.Type
                 ]
                 Optional = []
             } 
@@ -653,37 +776,32 @@ module Definition =
         let ComputeGradientsResult = 
             Pattern.Config "ComputeGradientsResult" {
                 Required = [
-                    "value", TFTensor.Type
+                    "value", Tensor.Type
                     "grads", NamedTensorMap
                 ]
                 Optional = []
             }
 
-        let TFTrainOptimizer =
+        let Optimizer =
             Class "tf.Train.Optimizer"
             |=> Inherits Serializable
             |+> Instance [
-                "minimize" => UnitToTensorFunc?f * !?T<bool>?returnCost * !?(!|TFVariable)?varList ^-> TFTensor + T<unit>
-                "computeGradients" => UnitToTensorFunc?f * !?(!|TFVariable)?varList ^-> ComputeGradientsResult
+                "minimize" => UnitToTensorFunc?f * !?T<bool>?returnCost * !?(!|Variable)?varList ^-> Tensor + T<unit>
+                "computeGradients" => UnitToTensorFunc?f * !?(!|Variable)?varList ^-> ComputeGradientsResult
                 "applyGradients" => (NamedTensorMap + !|NamedTensor)?variableGradients ^-> T<unit>
+                "dispose" => T<unit> ^-> T<unit>
+                "saveIterations" => T<unit> ^-> T<Promise<_>>[NamedTensor]
+                "getWeights" => T<unit> ^-> T<Promise<_>>[!|NamedTensor]
+                "setWeights" => (!|NamedTensor)?weightValues ^-> T<Promise<unit>>
+                "extractIterations" => (!|NamedTensor)?weightValues ^-> T<Promise<_>>[NamedTensor]
             ]
 
-        let TFInitializer = 
-            Class "tf.Constraints.Constraint"
-            |=> Inherits Serializable
+        let TensorContainer = T<unit> + Tensor + T<string> + T<float> + T<bool> + T<obj[]> + !|TSelf + T<Float32Array> + T<Int32Array> + T<Uint8Array>
 
-        let TFConstraint = 
-            Class "tf.Initializers.Initializer"
-            |=> Inherits Serializable
-
-        let TensorContainer = T<unit> + TFTensor + T<string> + T<float> + T<bool> + T<obj[]> + !|TSelf + T<Float32Array> + T<Int32Array> + T<Uint8Array>
-
-        let TFDataset =
-            Generic -- fun t o ->
+        let Dataset =
+            Generic - fun t ->
                 let tToBoolFunc = t?value ^-> T<bool>
                 let tToUnitFunc = t?input ^-> T<unit>
-                let tToOFunc = t?value ^-> o
-                let tToOFuncAsync = t?value ^-> T<Promise<_>>[o]
 
                 Class "tf.Data.Dataset"
                 |+> Instance [
@@ -691,8 +809,8 @@ module Definition =
                     "concatenate" => TSelf[t]?dataset ^-> TSelf[t]
                     "filter" => tToBoolFunc?predicate ^-> TSelf[t]
                     "forEachAsync" => tToUnitFunc?f ^-> T<Promise<unit>>
-                    "map" => tToOFunc?transform ^-> TSelf[o]
-                    "mapAsync" => tToOFuncAsync?transform ^-> TSelf[o]
+                    Generic - fun o -> "map" => (t?value ^-> o)?transform ^-> TSelf[o]
+                    Generic - fun o -> "mapAsync" => (t?value ^-> T<Promise<_>>[o])?transform ^-> TSelf[o]
                     "prefetch" => T<int>?bufferSize ^-> TSelf[t]
                     "repeat" => !?T<int>?count ^-> TSelf[t]
                     "skip" => T<int>?count ^-> TSelf[t]
@@ -700,6 +818,156 @@ module Definition =
                     "take" => T<int>?count ^-> TSelf[t]
                     "toArray" => T<unit> ^-> T<Promise<_>>[!|t]
                 ]
+
+        let DeepMapResult = 
+            Pattern.Config "DeepMapResult" {
+                Required = [
+                    "value", T<obj>
+                    "recurse", T<bool>
+                ]
+                Optional = []
+            }
+
+        let ZipFn = T<obj[]>?xs ^-> DeepMapResult
+
+        let LazyIterator = 
+            Generic - fun t ->
+                Class "LazyIterator"
+                |+> Instance [
+                    "summary" => T<unit> ^-> T<string>
+                    "next" => T<unit> ^-> T<Promise<_>>[IteratorResult]
+                    "toArray" => T<unit> ^-> T<Promise<_>>[!|t]
+                    "toArrayForTest" => T<unit> ^-> T<Promise<_>>[!|t]
+                    "resolveFully" => T<unit> ^-> T<Promise<unit>>
+                    "resolveWhile" => (t?r ^-> T<bool>)?predicate ^-> T<Promise<unit>>
+                    "handleErrors" => (T<Error>?error ^-> T<bool>)?handler ^-> TSelf[t]
+                    "filter" => (t?value ^-> T<bool>)?predicate ^-> TSelf[t]
+
+                    Generic - fun o -> "map" => (t?value ^-> o)?transform ^-> TSelf[o]
+                    Generic - fun o -> "mapAsync" => (t?value ^-> T<Promise<_>>[o])?transform ^-> TSelf[o]
+                    Generic - fun o -> "serialMapAsync" => (t?value ^-> T<Promise<_>>[o])?transform ^-> TSelf[o]
+                    Generic - fun o -> "flatmap" => (t?value ^-> !|o)?transform ^-> TSelf[o]
+
+                    "forEachAsync" => (t?value ^-> T<unit>)?f ^-> T<Promise<unit>>
+                    "serialForEach" => (t?value ^-> T<Promise<bool>>)?f ^-> T<Promise<unit>>
+                    "rowMajorBatch" => T<int>?batchSize * T<bool>?smallLastBatch ^-> TSelf[!|t]
+                    "columnMajorBatch" => T<int>?batchSize * T<bool>?smallLastBatch * ZipFn?zipFn ^-> TSelf[TensorContainer]
+                    "concatenate" => TSelf[t]?iterator * !?(T<Error>?e ^-> T<bool>)?baseErrorHandler ^-> TSelf[!|t]
+                    "take" => T<int>?count ^-> TSelf[t]
+                    "skip" => T<int>?count ^-> TSelf[t]
+                    "prefetch" => T<int>?bufferSize ^-> TSelf[t]
+                    "shuffle" => T<int>?windowSize * !?T<string>?seed ^-> TSelf[t]
+                    "serial" => T<unit> ^-> TSelf[t]
+            ]
+
+        let StringIterator = 
+            Class "StringIterator"
+            |=> Inherits LazyIterator[T<string>]
+            |+> Instance [
+                "split" => T<string>?seperator ^-> TSelf
+            ]
+
+        let ByteChunkIterator = 
+            Class "ByteChunkIterator"
+            |=> Inherits LazyIterator[T<Uint8Array>]
+            |+> Instance [
+                "decodeUTF8" => T<unit> ^-> StringIterator
+            ]
+
+        let DataSource = 
+            Class "DataSource"
+            |+> Instance [
+                "iterator" => T<unit> ^-> T<Promise<_>>[ByteChunkIterator]
+            ]
+
+        let CSVConfig = 
+            Pattern.Config "CSVConfig" {
+                Required = []
+                Optional = [
+                    "hasHeader", T<bool>
+                    "columnNames", !|T<string>
+                    "columnConfigs", T<obj[]>
+                    "configuredColumnsOnly", T<bool>
+                    "delimiter", T<string>
+                    "delimWhitespace", T<bool>
+                ]
+            }
+
+        let MicrophoneConfig = 
+            Pattern.Config "MicrophoneConfig" {
+                Required = []
+                Optional = [
+                    "sampleRateHz", T<int>
+                    "fftSize", T<int>
+                    "columnTruncateLength", T<int>
+                    "numFramesPerSpectrogram", T<int>
+                    "audioTrackConstraints", T<MediaTrackConstraints>
+                    "smoothingTimeConstant", T<float>
+                    "includeSpectrogram", T<bool>
+                    "includeWaveform", T<bool>
+                ]
+            }
+
+        let WebcamConfig = 
+            Pattern.Config "WebcamConfig" {
+                Required = []
+                Optional = [
+                    "facingMode", T<string>
+                    "deviceId", T<string>
+                    "resizeWidth", T<int>
+                    "resizeHeight", T<int>
+                    "centerCrop", T<bool>
+                ]
+            }
+
+        let CaptureResult =
+            Pattern.Config "CaptureResult" {
+                Required = []
+                Optional = [
+                    "spectrogram", Tensor.Type
+                    "waveform", Tensor.Type
+                ]
+            }
+
+        let MicrophoneIterator = 
+            Class "MicrophoneIterator"
+            |=> Inherits LazyIterator[TensorContainer]
+            |+> Static [
+                "create" => MicrophoneConfig?microphoneConfig ^-> T<unit>
+            ]
+            |+> Instance [
+                "summary" => T<unit> ^-> T<unit>
+                "start" => T<unit> ^-> T<Promise<unit>>
+                "next" => T<unit> ^-> T<Promise<_>>[IteratorResult[TensorContainer]]
+                "capture" => T<unit> ^-> T<Promise<_>>[CaptureResult]
+                "stop" => T<unit> ^-> T<unit>
+                "getSampleRate" => T<unit> ^-> T<int>
+            ]
+
+        let WebcamIterator = 
+            Class "WebcamIterator"
+            |=> Inherits LazyIterator[Tensor]
+            |+> Static [
+                "create" => T<HTMLVideoElement>?webcamVideoElement * WebcamConfig?webcamConfig ^-> T<unit>
+            ]
+            |+> Instance [
+                "summary" => T<unit> ^-> T<unit>
+                "start" => T<unit> ^-> T<Promise<unit>>
+                "next" => T<unit> ^-> T<Promise<_>>[IteratorResult]
+                "cropAndResizeFrame" => Tensor?img ^-> Tensor
+                "stop" => T<unit> ^-> T<unit>
+            ]
+
+        let CSVDataset = 
+            Class "tf.Data.CSVDataset"
+            |=> Inherits Dataset[TensorContainer]
+            |+> Instance [
+                "columnNames" => T<unit> ^-> T<unit>
+                "constructor" => DataSource?input * CSVConfig?csvConfig ^-> T<unit>
+                "iterator" => T<unit> ^-> T<Promise<_>>[LazyIterator[TensorContainer]]
+                "makeDataElement" => T<string>?line ^-> TensorContainer
+                "makeDataElement" => T<string>?line ^-> TensorContainer
+            ]
 
         let LayerArgs =
             Pattern.Config "LayerArgs" {
@@ -711,7 +979,7 @@ module Definition =
                     "dtype", !?DataType
                     "name", !?T<string>
                     "trainable", !?T<bool>
-                    "weights", !|TFTensor
+                    "weights", !|Tensor
                     "inputDType", !?DataType
                 ]
             }
@@ -730,7 +998,7 @@ module Definition =
                 "axes" =@ !?T<obj[]>
             ]
 
-        let TFLayer = 
+        let Layer = 
             Class "tf.Layers.Layer"
 
         let SymbolicTensor = 
@@ -747,14 +1015,14 @@ module Definition =
         let NodeArgs =
             Pattern.Config "NodeArgs" {
                 Required = [
-                    "outboundLayer", TFLayer.Type
-                    "inboundLayers", !|TFLayer
+                    "outboundLayer", Layer.Type
+                    "inboundLayers", !|Layer
                     "nodeIndices", T<int[]>
                     "tensorIndices", T<int[]>
                     "inputTensors", !|SymbolicTensor
                     "outputTensors", !|SymbolicTensor
-                    "inputMasks", !|TFTensor
-                    "outputMasks", !|TFTensor
+                    "inputMasks", !|Tensor
+                    "outputMasks", !|Tensor
                     "inputShapes", ShapeOrArray
                     "outputShapes", ShapeOrArray
                 ]
@@ -763,7 +1031,7 @@ module Definition =
 
         SymbolicTensor
         |+> Static [
-                 Constructor (DataType?dtype * Shape?shape * TFLayer?sourceLayer * 
+                 Constructor (DataType?dtype * Shape?shape * Layer?sourceLayer * 
                  !|SymbolicTensor * Kwargs?callArgs * !?T<string>?name * T<int>?outputTensorIndex)
             ]|> ignore
 
@@ -783,7 +1051,7 @@ module Definition =
             Class "Regularizer"
             |=> Inherits Serializable
             |+> Instance [
-                "apply" => TFTensor?x ^-> TFTensor
+                "apply" => Tensor?x ^-> Tensor
             ]
 
         let SymbolicTensorOrArray = SymbolicTensor + !|SymbolicTensor
@@ -793,44 +1061,44 @@ module Definition =
             |=> Inherits Serializable
             |+> Instance [
                 "fromConfigUsesCustomObjects" => T<unit> ^-> T<bool> 
-                "apply" => Shape?shape * !?DataType?dtype ^-> TFTensor 
+                "apply" => Shape?shape * !?DataType?dtype ^-> Tensor 
                 "getConfig" => T<unit> ^-> ConfigDict 
             ]
 
         let Constraint =
-            Class "Constraint"
+            Class "tf.Constraints.Constraint"
             |=> Inherits Serializable
             |+> Instance [
-                "apply" => TFTensor?w ^-> TFTensor 
+                "apply" => Tensor?w ^-> Tensor 
                 "getConfig" => T<unit> ^-> ConfigDict 
             ]
 
         let LayerVariable =
             Class "LayerVariable"
             |+> Static [
-                Constructor (TFTensor?``val`` * !?DataType?dtype * !?T<string>?name * !?T<bool>?trainable * !?Constraint?``constraint``)
+                Constructor (Tensor?``val`` * !?DataType?dtype * !?T<string>?name * !?T<bool>?trainable * !?Constraint?``constraint``)
             ]
             |+> Instance [
-                "read" => T<unit> ^-> TFTensor 
-                "write" => TFTensor?newVal ^-> TSelf 
+                "read" => T<unit> ^-> Tensor 
+                "write" => Tensor?newVal ^-> TSelf 
                 "dispose" => T<unit> ^-> T<unit> 
             ]
 
-        let RegularizerFn = T<unit> ^-> TFTensor
+        let RegularizerFn = T<unit> ^-> Tensor
         let RegularizerFnOrArray = RegularizerFn + !|RegularizerFn
 
-        TFLayer
+        Layer
         |=> Inherits Serializable
         |+> Static [
             Constructor (LayerArgs?args ^-> T<obj>)
-            "nodeKey" => TFLayer?layer * T<int>?nodeIndex ^-> T<unit>
+            "nodeKey" => Layer?layer * T<int>?nodeIndex ^-> T<unit>
         ]
         |+> Instance [
-            "apply" => (TensorOrArray + SymbolicTensorOrArray)?inputs * !?Kwargs?kwargs ^-> TensorOrArray + SymbolicTensorOrArray
+            "apply" => (TensorOrTensorArray + SymbolicTensorOrArray)?inputs * !?Kwargs?kwargs ^-> TensorOrTensorArray + SymbolicTensorOrArray
             "countParams" => T<unit> ^-> T<int> 
             "build" => ShapeOrArray?inputShape ^-> T<unit> 
-            "getWeights" => T<bool>?trainableOnly ^-> !|TFTensor 
-            "setWeights" => (!|TFTensor)?weights ^-> T<unit> 
+            "getWeights" => T<bool>?trainableOnly ^-> !|Tensor 
+            "setWeights" => (!|Tensor)?weights ^-> T<unit> 
             "addWeight" => T<string>?name * Shape?shape * !?DataType?dtype * !?Initializer?initializer * !?Regularizer?regularizer * !?T<bool>?trainable * !?Constraint?``constraint`` * !?T<Function>?getInitializerFunc ^-> LayerVariable 
             "addLoss" => RegularizerFnOrArray?losses ^-> T<unit> 
             "computeOutputShape" => ShapeOrArray?inputShape ^-> ShapeOrArray
@@ -841,14 +1109,14 @@ module Definition =
         let GraphNode =
             Pattern.Config "GraphNode" {
                 Required = [
-                    "inputs", !|TFTensor
+                    "inputs", !|Tensor
                     "attrs", T<obj[]>
                 ]
                 Optional = []
             }
 
 
-        let OpExecutor = GraphNode?node ^-> TensorOrArray + T<Promise<_>>[TensorOrArray]      
+        let OpExecutor = GraphNode?node ^-> TensorOrTensorArray + T<Promise<_>>[TensorOrTensorArray]      
         
         let ValueType = 
             Pattern.Config "ValueType" {
@@ -861,8 +1129,8 @@ module Definition =
                     "number[][]", T<float[][]>
                     "boolean", T<bool>
                     "boolean[]", T<bool[]>
-                    "tensor", TFTensor.Type
-                    "tensors", !|TFTensor
+                    "tensor", Tensor.Type
+                    "tensors", !|Tensor
                 ]
             }
 
@@ -916,7 +1184,7 @@ module Definition =
         let BaseCallback =  
             Class "BaseCallback" 
             |+> Instance [
-                "validationData" =@ TensorOrArray
+                "validationData" =@ TensorOrTensorArray
                 "params" =@ T<obj>
 
                 "setParams" => T<obj>?``params`` ^-> T<unit>
@@ -944,7 +1212,7 @@ module Definition =
         let ModelCompileArgs = 
             Pattern.Config "ModelCompileArgs" {
                 Required = [
-                    "optimizer", T<string> + TFTrainOptimizer
+                    "optimizer", T<string> + Optimizer
                     "loss", T<string> + !| T<string> + T<obj> + LossOrMetricFn + !| LossOrMetricFn
                     "metrics", T<string> + LossOrMetricFn
                 ]
@@ -957,7 +1225,7 @@ module Definition =
                 Optional = [
                     "batchSize", T<int>
                     "verbose", T<int>
-                    "sampleWeight", TFTensor.Type
+                    "sampleWeight", Tensor.Type
                     "steps", T<int>
                 ]
             }
@@ -972,10 +1240,10 @@ module Definition =
                 Optional = [
                     "calback", Callback
                     "validationSplit", T<float>
-                    "validationData", !| (TFTensor + !|TFTensor) 
+                    "validationData", !| (Tensor + !|Tensor) 
                     "shuffle", T<bool>
                     "classWeight", T<obj>
-                    "sampleWeight", TFTensor.Type
+                    "sampleWeight", Tensor.Type
                     "initialEpoch", T<int>
                     "stepsPerEpoch", T<int>
                     "validationSteps", T<int>
@@ -992,7 +1260,7 @@ module Definition =
                         "epochs", T<int>
                         "verbose", T<int>
                         "callbacks", Callback
-                        "validationData", !| TensorOrArrayOrMap + TFDataset[t]
+                        "validationData", !| TensorOrArrayOrMap + Dataset[t]
                         "validationBatchSize", T<int>
                         "validationBatches", T<int>
                         "yieldEvery", T<string> + T<int>
@@ -1005,35 +1273,24 @@ module Definition =
             Pattern.Config "SequentialArgs" {
                 Required = []
                 Optional = [
-                    "layers", !| TFLayer
+                    "layers", !| Layer
                     "name", T<string>
                 ]
             }
 
-        let TFSymbolicTensor = 
-            Class "Tf.SymbolicTensor"
-            |+> Instance [
-                "id" =? T<int>
-                "name" =? T<string>
-                "originalName" =? T<string>
-                "rank" =? T<int>
-                "nodeIndex" =@ T<int>
-                "tensorIndex" =@ T<int>
-            ]
+        let SymbolicTensorArray = !| SymbolicTensor
 
-        let TFSymbolicTensorArray = !| TFSymbolicTensor
-
-        TFSymbolicTensor
+        SymbolicTensor
             |+> Static [
-                Constructor (T<string>?dtype * Shape?shape * TFLayer?sourceLayer * TFSymbolicTensorArray?inputs * T<obj>?callArgs * !? T<string>?name * !? T<int>?outputTensorIndex)
+                Constructor (DataType?dtype * Shape?shape * Layer?sourceLayer * SymbolicTensorArray?inputs * T<obj>?callArgs * !? T<string>?name * !? T<int>?outputTensorIndex)
                 
             ] |> ignore
 
         let ContainerArgs =
             Pattern.Config "ContainerArgs" {
                 Required = [
-                    "inputs", TFSymbolicTensor + !|TFSymbolicTensor
-                    "outputs", TFSymbolicTensor + !|TFSymbolicTensor
+                    "inputs", SymbolicTensor + !|SymbolicTensor
+                    "outputs", SymbolicTensor + !|SymbolicTensor
                 ]
                 Optional = [
                     "name", T<string>
@@ -1068,65 +1325,88 @@ module Definition =
                 "outputs" =? !| ModelTensorInfo
 
                 "predict" => TensorOrArrayOrMap?inputs * ModelPredictConfig?config ^-> TensorOrArrayOrMap
-                "execute" => TensorOrArrayOrMap?inputs * (T<string> + !| T<string>)?outputs ^-> TensorOrArray
+                "execute" => TensorOrArrayOrMap?inputs * (T<string> + !| T<string>)?outputs ^-> TensorOrTensorArray
             ]
 
-        let TFGraphModel =
+        let GraphModel =
             Class "Tf.GraphModel"
-            |=> Inherits InferenceModel
             |+> Instance [ 
                 "load" => T<unit> ^-> T<Promise<bool>>
                 "loadSync" => ModelArtifacts?artifacts ^-> T<bool>
                 "save" => HandleOrString?handlerOrURL * !? SaveConfig?config ^-> T<Promise<_>>[SaveResult]
                 "predict" => TensorOrArrayOrMap * !? ModelPredictConfig?config ^-> TensorOrArrayOrMap
                 "predictAsync" => TensorOrArrayOrMap?input * !? ModelPredictConfig?config ^-> T<Promise<_>>[TensorOrArrayOrMap]
-                "execute" => TensorOrArrayOrMap?input * !? (T<string> + !| T<string>)?outputs ^-> (TFTensor + !| TFTensor)
-                "executeAsync" => TensorOrArrayOrMap?input * !? (T<string> + !| T<string>)?outputs ^-> T<Promise<_>>[(TFTensor + !| TFTensor)]
+                "execute" => TensorOrArrayOrMap?input * !? (T<string> + !| T<string>)?outputs ^-> (Tensor + !| Tensor)
+                "executeAsync" => TensorOrArrayOrMap?input * !? (T<string> + !| T<string>)?outputs ^-> T<Promise<_>>[(Tensor + !| Tensor)]
                 "getIntermediateTensors" => T<unit> ^-> T<obj>
                 "disposeIntermediateTensors" => T<unit> ^-> T<unit>
                 "dispose" => T<unit> ^-> T<unit>
             ]
 
-        let TFLayersModel =
+        let LayersModel =
             Class "tf.LayersModel"
-            |=> Inherits InferenceModel
+            |+> Static [
+                Constructor ContainerArgs?args
+            ]
             |+> Instance [
+                "optimizer_" =@ Optimizer 
+                "isOptimizerOwned" =@ T<bool>
+                "loss" =@ StringOrArray + !|LossOrMetricFn + LossOrMetricFn + T<obj[]>
+                "lossFunctions" =@ !|LossOrMetricFn 
+                "history" =@ History 
+                "stopTraining_" =@ T<bool>
+                "isTraining" =@ T<bool>
+                "metrics" =@ StringOrArray + !|LossOrMetricFn + LossOrMetricFn + T<obj[]>
+                "metricsNames" =@ T<string[]>
+                "metricsTensors" =@ T<int[]> + !|LossOrMetricFn
+
                 "summary" => !?T<int>?lineLength * T<int[]>?positions * !?PrintFnType?printFn ^-> T<unit>
                 "compile" => ModelCompileArgs?args ^-> T<unit>
-                "evaluate" => TensorOrArray?x * TensorOrArray?y * !?ModelEvaluateArgs?args ^-> TensorOrArray
-                "evaluateDataset" => TFDataset?dataset * !?ModelEvaluateDatasetArgs?args ^-> T<Promise<_>>[TensorOrArray]
-                "predict" => TensorOrArray?x * !?ModelPredictArgs?args ^-> TensorOrArray
-                "predictOnBatch" => TensorOrArray?x ^-> TensorOrArray
+                "checkTrainableWeightsConsistency" => T<unit> ^-> T<unit>
+                "evaluate" => TensorOrTensorArray?x * TensorOrTensorArray?y * !?ModelEvaluateArgs?args ^-> TensorOrTensorArray
+                "evaluateDataset" => Dataset[T<obj>]?dataset * !?ModelEvaluateDatasetArgs?args ^-> T<Promise<_>>[TensorOrTensorArray]
+                "execute" => (TensorOrTensorArray + NamedTensorMap)?inputs * StringOrArray?outputs ^-> TensorOrTensorArray
+                "predict" => TensorOrTensorArray?x * !?ModelPredictArgs?args ^-> TensorOrTensorArray
+                "predictOnBatch" => TensorOrTensorArray?x ^-> TensorOrTensorArray
+                "standardizeUserDataXY" => (TensorOrTensorArray + T<obj[]>)?y * (TensorOrTensorArray + T<obj[]>)?y * !?T<bool>?checkBatchAxis * !?T<int>?batchSize ^-> !| (!| Tensor)
+                "standardizeUserData" => (TensorOrTensorArray + T<obj[]>)?y * (TensorOrTensorArray + T<obj[]>)?y * !?(TensorOrTensorArray + T<obj[]>)?sampleWeight * !?(T<obj[][]> + T<obj[]>)?classWeight * !?T<bool>?checkBatchAxis * !?T<int>?batchSize ^-> T<Promise<_>>[!| (!| Tensor)]
+                "getDedupedMetricsNames" => T<unit> ^-> T<string[]>
+                "makeTrainFunction" => T<unit> ^-> ((!|Tensor)?data ^-> !|Tensor)
                 "fit" => TensorOrArrayOrMap?x * TensorOrArrayOrMap?y * !?ModelFitArgs?args ^-> T<Promise<_>>[History]
                 Generic - fun t ->
-                    "fitDataset" => TFDataset[t]?dataset * !?ModelFitDatasetArgs[t]?args ^-> T<Promise<_>>[History]
+                    "fitDataset" => Dataset[t]?dataset * !?ModelFitDatasetArgs[t]?args ^-> T<Promise<_>>[History]
                 "trainOnBatch" => TensorOrArrayOrMap?x * TensorOrArrayOrMap?y ^-> T<Promise<_>>[T<int> + T<int[]>]
+                "getNamedWeights" => !?SaveConfig?config ^-> !|NamedTensor
+                "getTrainingConfig" => T<unit> ^-> TrainingConfig
+                "loadTrainingConfig" => TrainingConfig?trainingConfig ^-> T<unit>
                 "save" => HandleOrString?handlerOrURL * !?SaveConfig?config ^-> T<Promise<_>>[SaveResult]
-                "getLayer" => T<string>?name ^-> TFLayer
+                "setUserDefinedMetadata" => T<obj>?userDefinedMetadata ^-> T<unit>
+                "getUserDefinedMetadata" => T<unit> ^-> T<obj>
+                "getLayer" => !?(T<string> + T<int>)?nameOrIndex * !?T<int>?index ^-> Layer
             ]
 
-        let TFSequential = 
+        let Sequential = 
             Class "tf.Sequential"
-            |=> Inherits TFLayersModel
+            |=> Inherits LayersModel
             |+> Static [
                 Constructor !? SequentialArgs?args
             ]
             |+> Instance [
-                "add" => TFLayer?layer ^-> T<unit>
+                "add" => Layer?layer ^-> T<unit>
                 "pop" => T<unit> ^-> T<unit>
             ]
 
-        let TFFunction = 
+        let Function = 
             Class "TFFunction"
-            |=> Inherits TFLayersModel
+            |=> Inherits LayersModel
 
         let RNNCell =
             Class "tf.RNNCell"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 "stateSize" =@ (T<int> + T<int[]>)
-                "dropoutMask" =@ TensorOrArray
-                "recurrentDropoutMask" =@ TensorOrArray
+                "dropoutMask" =@ TensorOrTensorArray
+                "recurrentDropoutMask" =@ TensorOrTensorArray
             ]
 
         let ELULayerArgs = 
@@ -1138,7 +1418,9 @@ module Definition =
             }
             |=> Inherits LayerArgs
 
-        let LeakyReLULayerArgs = ELULayerArgs
+        let LeakyReLULayerArgs = 
+            Class "LeakyReLULayerArgs"
+            |=> Inherits ELULayerArgs
 
         let ReLULayerArgs =
             Pattern.Config "ReLULayerArgs" {
@@ -1569,7 +1851,6 @@ module Definition =
                 ]
             }
 
-
         let LSTMLayerArgs =
             Pattern.Config "LSTMLayerArgs" {
                 Required = []
@@ -1625,7 +1906,7 @@ module Definition =
 
         let WrapperLayerArgs =
             Pattern.Config "WrapperLayerArgs" {
-                Required = ["layer", TFLayer.Type]
+                Required = ["layer", Layer.Type]
                 Optional = []
             }
             |=> Inherits LayerArgs
@@ -1757,7 +2038,7 @@ module Definition =
 
         let RNN = 
             Class "RNN"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor RNNLayerArgs?args
             ]
@@ -1769,8 +2050,8 @@ module Definition =
                 "unroll" =? T<bool>
                 "stateSpec" =? !|InputSpec
 
-                "getState" => T<unit> ^-> !| TFTensor
-                "setSate" => TFTensor?states ^-> T<unit>
+                "getState" => T<unit> ^-> !| Tensor
+                "setSate" => Tensor?states ^-> T<unit>
             ]
 
         let BidirectionalLayerArgs =
@@ -1789,7 +2070,7 @@ module Definition =
 
         let BaseConv = 
             Class "BaseConv" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (T<int>?rank * BaseConvLayerArgs?args)
             ]
@@ -1831,7 +2112,7 @@ module Definition =
 
         let Cropping2D = 
             Class "Cropping2D" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (Cropping2DLayerArgs?args)
             ] 
@@ -1859,124 +2140,124 @@ module Definition =
 
         let UpSampling2D = 
             Class "UpSampling2D" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (UpSampling2DLayerArgs?args)
             ] 
 
         let ELU = 
             Class "ELU"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor !?ELULayerArgs?args
             ]
 
         let LeakyReLU = 
             Class "LeakyReLU"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor !?LeakyReLULayerArgs?args
             ]
 
         let PReLU = 
             Class "PReLU"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor !?PReLULayerArgs?args
             ]
 
         let ReLU = 
             Class "ReLU"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor !?ReLULayerArgs?args
             ]
 
         let Softmax = 
             Class "Softmax"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor !?SoftmaxLayerArgs?args
             ]
 
         let ThresholdedReLU = 
             Class "ThresholdedReLU"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor !?ThresholdedReLULayerArgs?args
             ]
 
         let Activation = 
             Class "Activation"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor ActivationLayerArgs?args
             ]
 
         let Dense = 
             Class "Dense"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor DenseLayerArgs?args
             ]
 
         let Dropout = 
             Class "Dropout"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor DropoutLayerArgs?args
             ]
 
         let Embedding = 
             Class "Embedding"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor EmbeddingLayerArgs?args
             ]
 
         let Flatten = 
             Class "Flatten"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor !?FlattenLayerArgs?args
             ]
 
         let Permute = 
             Class "Permute"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor PermuteLayerArgs?args
             ]
 
         let RepeatVector = 
             Class "RepeatVector"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor RepeatVectorLayerArgs?args
             ]
 
         let Reshape = 
             Class "Reshape"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor ReshapeLayerArgs?args
             ]
 
         let SpatialDropout1D = 
             Class "SpatialDropout1D"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Instance [
                 Constructor SpatialDropout1DLayerConfig?args
             ]
 
         let Merge = 
             Class "Merge" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor !?LayerArgs?args
             ]
             |+> Instance [
-                "mergeFunction" => (!|TFTensor)?inputs ^-> TFTensor
+                "mergeFunction" => (!|Tensor)?inputs ^-> Tensor
             ]
 
         let Add = 
@@ -2030,21 +2311,21 @@ module Definition =
 
         let BatchNormalization = 
             Class "BatchNormalization" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor !?BatchNormalizationLayerArgs?args
             ]
 
         let LayerNormalization = 
             Class "LayerNormalization" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor !?LayerNormalizationLayerArgs?args
             ]
 
         let Pooling1D = 
             Class "Pooling1D" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor Pooling1DLayerArgs?args
             ]
@@ -2056,12 +2337,12 @@ module Definition =
                 Constructor Pooling1DLayerArgs?args
             ]
             |+> Instance [
-                "poolingFunction" => TFTensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> TFTensor 
+                "poolingFunction" => Tensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> Tensor 
             ]
 
         let Pooling2D = 
             Class "Pooling2D" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor Pooling2DLayerArgs?args
             ]
@@ -2073,12 +2354,12 @@ module Definition =
                 Constructor Pooling2DLayerArgs?args
             ]
             |+> Instance [
-                "poolingFunction" => TFTensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> TFTensor 
+                "poolingFunction" => Tensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> Tensor 
             ]
 
         let Pooling3D = 
             Class "Pooling3D" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor Pooling3DLayerArgs?args
             ]
@@ -2090,12 +2371,12 @@ module Definition =
                 Constructor Pooling3DLayerArgs?args
             ]
             |+> Instance [
-                "poolingFunction" => TFTensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> TFTensor 
+                "poolingFunction" => Tensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> Tensor 
             ]
 
         let GlobalPooling1D = 
             Class "GlobalPooling1D" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor LayerArgs?args
             ]
@@ -2109,7 +2390,7 @@ module Definition =
 
         let GlobalPooling2D = 
             Class "GlobalPooling2D" 
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor GlobalPooling2DLayerArgs?args
             ]
@@ -2136,7 +2417,7 @@ module Definition =
                 Constructor Pooling1DLayerArgs?args
             ]
             |+> Instance [
-                "poolingFunction" => TFTensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> TFTensor 
+                "poolingFunction" => Tensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> Tensor 
             ]
 
         let MaxPooling2D = 
@@ -2146,7 +2427,7 @@ module Definition =
                 Constructor Pooling2DLayerArgs?args
             ]
             |+> Instance [
-                "poolingFunction" => TFTensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> TFTensor 
+                "poolingFunction" => Tensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> Tensor 
             ]
 
         let MaxPooling3D = 
@@ -2156,7 +2437,7 @@ module Definition =
                 Constructor Pooling3DLayerArgs?args
             ]
             |+> Instance [
-                "poolingFunction" => TFTensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> TFTensor 
+                "poolingFunction" => Tensor?input * T<int[]>?poolSize * T<int[]>?strides * T<string>?padding * T<string>?dataFormat ^-> Tensor 
             ]
 
         let ConvRNN2D = 
@@ -2231,7 +2512,7 @@ module Definition =
 
         let Wrapper =
             Class "Wrapper"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (WrapperLayerArgs?args)
             ]
@@ -2252,172 +2533,599 @@ module Definition =
 
         let InputLayer =
             Class "InputLayer"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (InputLayerArgs?args)
             ]
 
         let ZeroPadding2D =
             Class "ZeroPadding2D"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (!?ZeroPadding2DLayerArgs?args)
             ]
 
         let AlphaDropout =
             Class "AlphaDropout"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (AlphaDropoutArgs?args)
             ]
             |+> Instance [
-                "_getNoiseShape" => (TFTensor + !|TFTensor)?inputs ^-> T<unit> 
+                "_getNoiseShape" => (Tensor + !|Tensor)?inputs ^-> T<unit> 
             ]
 
         let GaussianDropout =
             Class "GaussianDropout"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (GaussianDropoutArgs?args)
             ]
 
         let GaussianNoise =
             Class "GaussianNoise"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (GaussianNoiseArgs?args)
             ]
 
         let Masking =
             Class "Masking"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (!?MaskingArgs?args)
             ]
 
         let Rescaling =
             Class "Rescaling"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (RescalingArgs?args)
             ]
 
         let CenterCrop =
             Class "CenterCrop"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (CenterCropArgs?args)
             ]
             |+> Instance [
-                "centerCrop" => TFTensor?inputs * T<int>?hBuffer * T<int>?wBuffer * T<int>?height * T<int>?width * T<int>?inputHeight * T<int>?inputWidth * DataType?dtype ^-> TFTensor + !|TFTensor
-                "upsize" => TFTensor?inputs * T<int>?height * T<int>?width * DataType?dtype ^-> TFTensor + !|TFTensor
+                "centerCrop" => Tensor?inputs * T<int>?hBuffer * T<int>?wBuffer * T<int>?height * T<int>?width * T<int>?inputHeight * T<int>?inputWidth * DataType?dtype ^-> Tensor + !|Tensor
+                "upsize" => Tensor?inputs * T<int>?height * T<int>?width * DataType?dtype ^-> Tensor + !|Tensor
             ]
 
         let Resizing =
             Class "Resizing"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (ResizingArgs?args)
             ]
 
         let CategoryEncoding =
             Class "CategoryEncoding"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (CategoryEncodingArgs?args)
             ]
 
         let RandomWidth =
             Class "RandomWidth"
-            |=> Inherits TFLayer
+            |=> Inherits Layer
             |+> Static [
                 Constructor (RandomWidthArgs?args)
             ]
 
+        let SGDOptimizer =  
+            Class "SGDOptimizer"
+            |=> Inherits Optimizer
+            |+> Static [
+                Constructor T<float>?learningRate
+            ]
+            |+> Instance [
+                "setLearningRate" => T<float>?learningRate ^-> T<unit>
+                "getConfig" => T<unit> ^-> ConfigDict
+            ]
+
+        let MomentumOptimizer =  
+            Class "MomentumOptimizer"
+            |=> Inherits SGDOptimizer
+            |+> Static [
+                Constructor (T<float>?learningRate)
+            ]
+
+        let AdagradOptimizer =  
+            Class "AdagradOptimizer"
+            |=> Inherits Optimizer
+            |+> Static [
+                Constructor (T<float>?learningRate)
+            ]
+
+        let AdamOptimizer =  
+            Class "AdamOptimizer"
+            |=> Inherits Optimizer
+            |+> Static [
+                Constructor (T<float>?learningRate * T<float>?beta1 * T<float>?beta2 * T<float>?epsilon)
+            ]
+
+        let AdadeltaOptimizer =  
+            Class "AdadeltaOptimizer"
+            |=> Inherits Optimizer
+            |+> Static [
+                Constructor (T<float>?learningRate * T<float>?rho * T<float>?epsilon)
+            ]
+
+        let RMSPropOptimizer =  
+            Class "RMSPropOptimizer"
+            |=> Inherits Optimizer
+            |+> Static [
+                Constructor (T<float>?learningRate * T<float>?decay * T<float>?momentum * T<float>?epsilon * T<bool>?centered)
+            ]
+
+        let AdamaxOptimizer =  
+            Class "AdamaxOptimizer"
+            |=> Inherits Optimizer
+            |+> Static [
+                Constructor (T<float>?learningRate * T<float>?rho * T<float>?epsilon * T<float>?decay)
+            ]        
+
+        let ProfileInfo = 
+            Pattern.Config "ProfileInfo" {
+                Required = [
+                    "newBytes", T<int> 
+                    "newTensors", T<int>
+                    "peakBytes", T<int>
+                    "kernels", !|KernelInfo
+                    "result", TensorContainer
+                    "kernelNames", T<string[]>
+                ]
+                Optional = []
+            }
+
+        let Platform =
+            Class "Platform"
+            |+> Instance [
+                "fetch" => T<string>?path * !?T<Request>?requestInits * !?RequestDetails?optioins ^-> T<Promise<Response>>
+                "now" => T<unit> ^-> T<int>
+                "encode" => T<string>?text * T<string>?encoding ^-> T<Uint8Array>
+                "decode" => T<Uint8Array>?bytes * T<string>?encoding ^-> T<string>
+                "setTimeoutCustom" => !?T<Function>?functionRef * T<int>?delay ^-> T<unit>
+                "isTypedArray" => TypedArray?a ^-> T<bool>
+            ]
+
+        let FlagEvaluationFn = (T<unit> ^-> FlagValue) + (T<unit> ^-> T<Promise<_>>[FlagValue])
+
+        let Environment =
+            Class "Environment"
+            |+> Static [
+                Constructor T<obj>?``global``
+            ]
+            |+> Instance [
+                "setPlatform" => T<string>?platformName * Platform?platform ^-> T<unit>
+                "registerFlag" => T<string>?flagName * FlagEvaluationFn?evaluationFn * (FlagValue?value ^-> T<unit>)?setHook ^-> T<unit>
+                "getAsync" => T<string>?flagName ^-> T<Promise<_>>[FlagValue]
+                "get" => T<string>?flagName ^-> FlagValue
+                "getNumber" => T<string>?flagName ^-> T<float>
+                "getBool" => T<string>?flagName ^-> T<bool>
+                "getString" => T<string>?flagName ^-> T<string>
+                "getFlags" => T<unit> ^-> Flags
+                "set" => T<string>?flagName * FlagValue?value ^-> T<unit>
+                "setFlag" => Flags?flags ^-> T<unit>
+                "reset" => T<unit> ^-> T<unit>
+            ]
+
+        let KernelBackend = 
+            Class "KernelBackend"
+            |+> Instance [
+                "refCount" => DataId?dataId ^-> T<int>
+                "incRef" => DataId?dataId ^-> T<unit>
+                "timerAvailable" => T<unit> ^-> T<bool>
+                "time" => (T<unit> ^-> T<unit>)?f ^-> T<Promise<_>>[BackendTimingInfo]
+                "read" => T<obj>?dataId ^-> T<Promise<_>>[BackendValues]
+                "readSync" => T<obj>?dataId ^-> BackendValues
+                "readToGPU" => DataId?dataId * DataToGPUOptions?options ^-> GPUData
+                "numDataIds" => T<unit> ^-> T<int>
+                "disposeData" => T<obj>?dataId * !?T<bool>?force ^-> T<bool>
+                "write" => BackendValues?values * Shape?shape * DataType?dtype ^-> DataId
+                "move" => DataId?dataId * BackendValues?values * Shape?shape * DataType?dtype * T<int>?refCount ^-> T<unit>
+                "createTensorFromGPUData" => (WebGLData + WebGPUData)?values * Shape?shape * DataType?dtype ^-> Tensor
+                "memory" => T<unit> ^-> Memory
+                "floatPrecision" => T<unit> ^-> T<float>
+                "epsilon" => T<unit> ^-> T<float>
+                "dispose" => T<unit> ^-> T<unit>
+            ]
+
+        let UnitToKernelFunc = T<unit> ^-> KernelBackend + T<Promise<_>>[KernelBackend]
+        let ScopeFn = T<unit> ^-> TensorContainer
+
+        let ValueAndGradsResultReturn = 
+            Pattern.Config "ValueAndGradsResultReturn" {
+                Required = [
+                    "value", Tensor.Type
+                    "grads", !|Tensor
+                ]
+                Optional = []
+            }
+
+        let CustomGradientFuncResult = 
+            Pattern.Config "CustomGradientFuncResult" {
+                Required = [
+                    "value", Tensor.Type
+                    "gradFunc", Tensor?d * (!|Tensor)?saved ^-> Tensor + !|Tensor
+                ]
+                Optional = []
+            }
+
+        let IntOrTensor = T<int> + Tensor
+        let WindowFn = T<int>?length ^-> Tensor
+        let GradFunc = Tensor?x ^-> Tensor
+        let GradsFunc = Tensor?x1 * !?(!|Tensor)?x2 ^-> Tensor
+        let GradSaveFunc = (!|Tensor)?save ^-> T<unit>
+        let CustomGradientFunc = (!|GradSaveFunc + !|Tensor)?inputs ^-> CustomGradientFuncResult
+
+        let Engine =
+            Class "Engine"
+            |+> Static [
+                Constructor Environment?ENV
+            ]
+            |+> Instance [
+                "ready" => T<unit> ^-> T<Promise<unit>>
+                "backendNames" => T<unit> ^-> T<string[]>
+                "findBackend" => T<string>?backendName ^-> KernelBackend
+                "findBackendFactory" => T<string>?backendName ^-> UnitToKernelFunc
+                "registerBackend" => T<string>?backendName * UnitToKernelFunc?factory * T<int>?priority ^-> T<bool>
+                "setBackend" => T<string>?backendName ^-> T<Promise<bool>>
+                "removeBackend" => T<string>?backendName ^-> T<unit>
+                "moveData" => KernelBackend?backend * DataId?dataId ^-> T<unit>
+                "tidy" => (T<string> + ScopeFn)?nameOrFn * !?ScopeFn?fn ^-> TensorContainer
+                "runKernel" => T<string>?kernelName * NamedTensorMap?inputs * T<obj[]>?attrs ^-> TensorOrTensorArray
+                "makeTensor" => DataValues?values * Shape?shape * DataType?dtype * !?KernelBackend?backend ^-> Tensor
+                "makeTensorFromDataId" => DataId?dataId * Shape?shape * DataType?dtype * !?KernelBackend?backend ^-> Tensor
+                "makeTensorFromDataId" => TensorInfo?tensorInfo * !?KernelBackend?backend ^-> Tensor
+                "makeVariable" => Tensor?initialValue * T<bool>?trainable * !?T<string>?name * DataType?dtype ^-> Variable
+                "trackTensor" => Tensor?a * KernelBackend?backend ^-> T<unit>
+                "incRef" => Tensor?a * KernelBackend?backend ^-> T<unit>
+                "removeDataId" => DataId?dataId * KernelBackend?backend ^-> T<unit>
+                "disposeTensor" => Tensor?a ^-> T<unit>
+                "disposeVariables" => T<unit> ^-> T<unit>
+                "disposeVariable" => Variable?v ^-> T<unit>
+                "memory" => T<unit> ^-> MemoryInfo
+                "profile" => (T<unit> ^-> TensorContainer + T<Promise<_>>[TensorContainer])?query ^-> T<Promise<_>>[ProfileInfo]
+                "isTapeOn" => T<unit> ^-> T<bool>
+                "keep" => Tensor?result ^-> Tensor
+                "startScope" => !?T<string>?name ^-> T<unit>
+                "endScope" => !?TensorContainer?result ^-> T<unit>
+                "gradients" => (T<unit> ^-> Tensor)?f * (!|Tensor)?xs * !?Tensor?dy * T<bool>?allowNoGradients ^-> ValueAndGradsResultReturn
+                "customGrad" => !?CustomGradientFunc?f ^-> (!|Tensor + !|GradSaveFunc) ^-> Tensor
+                "readSync" => DataId?dataId ^-> BackendValues
+                "read" => DataId?dataId ^-> T<Promise<_>>[BackendValues]
+                "readToGPU" => DataId?dataId * !?DataToGPUOptions?options ^-> GPUData
+                "time" => (T<unit> ^-> T<unit>)?query ^-> T<Promise<_>>[TimingInfo]
+                "reset" => T<unit> ^-> T<unit>
+            ]
+
+        let GlorotUniformArgs = 
+            Class "GlorotUniformArgs" 
+            |=> Inherits GlorotNormalArgs
+
+        let HeNormalArgs = 
+            Class "HeNormalArgs" 
+            |=> Inherits GlorotNormalArgs
+
+        let HeUniformArgs = 
+            Class "HeUniformArgs" 
+            |=> Inherits GlorotNormalArgs
+
+        let IdentityArgs = 
+            Pattern.Config "IdentityArgs" {
+                Required = []
+                Optional = [
+                    "gain", T<float>
+                ]
+            }
+
+        let LeCunNormalArgs = 
+            Class "LeCunNormalArgs" 
+            |=> Inherits GlorotNormalArgs
+
+        let LeCunUniformArgs = 
+            Class "LeCunUniformArgs" 
+            |=> Inherits GlorotNormalArgs
+
+        let OrthogonalArgs = 
+            Pattern.Config "OrthogonalArgs" {
+                Required = []
+                Optional = [
+                    "gain", T<float>
+                    "seed", T<int>
+                ]
+            }
+
+        let RandomNormalArgs = 
+            Pattern.Config "RandomNormalArgs" {
+                Required = []
+                Optional = [
+                    "mean", T<float>
+                    "stddev", T<float>
+                    "seed", T<int>
+                ]
+            }
+
+        let RandomUniformArgs = 
+            Pattern.Config "RandomUniformArgs" {
+                Required = []
+                Optional = [
+                    "minval", T<float>
+                    "maxval", T<float>
+                    "seed", T<int>
+                ]
+            }
+
+        let TruncatedNormalArgs = 
+            Class "TruncatedNormalArgs" 
+            |=> Inherits RandomNormalArgs
+
+        let VarianceScalingArgs = 
+            Pattern.Config "VarianceScalingArgs" {
+                Required = []
+                Optional = [
+                    "scale", T<float>
+                    "mode", T<string>
+                    "distribution", T<string>
+                    "seed", T<int>
+                ]
+            }
+
+        let Zeros = 
+            Class "Zeros"
+            |+> Instance [
+                "apply" => Shape?shape * DataType?dtype ^-> Tensor
+            ]
+
+        let L1Config = 
+            Pattern.Config "L1Config" {
+                Required = []
+                Optional = [
+                    "l1", T<float>
+                ]
+            }
+
+        let L1L2Config = 
+            Pattern.Config "L1L2Config" {
+                Required = []
+                Optional = [
+                    "l1", T<float>
+                    "l2", T<float>
+                ]
+            }
+
+        let L2Config = 
+            Pattern.Config "L2Config" {
+                Required = []
+                Optional = [
+                    "l2", T<float>
+                ]
+            }
+
+        let ImageOptions = 
+            Pattern.Config "ImageOptions" {
+                Required = []
+                Optional = [
+                    "alpha", T<float>
+                ]
+            }
+
+        let WebGLContextAttributes = 
+            Pattern.Config "WebGLContextAttributes" {
+                Required = []
+                Optional = [
+                    "alpha", T<bool>
+                    "antialias", T<bool>
+                    "premultipliedAlpha", T<bool>
+                    "preserveDrawingBuffer", T<bool>
+                    "depth", T<bool>
+                    "stencil", T<bool>
+                    "failIfMajorPerformanceCaveat", T<bool>
+                ]
+            }
+
+        let ContextOptions = 
+            Pattern.Config "ContextOptions" {
+                Required = []
+                Optional = [
+                    "contextType", T<string>
+                    "contextAttributes", WebGLContextAttributes.Type
+                ]
+            }
+
+        let DrawOptions = 
+            Pattern.Config "DrawOptions" {
+                Required = []
+                Optional = [
+                    "imageOptions", ImageOptions.Type
+                    "contextOptions", ContextOptions.Type
+                ]
+            }
+
+        let PixelData = 
+            Pattern.Config "PixelData" {
+                Required = [
+                    "width", T<int>
+                    "height", T<int>
+                    "data", T<Uint8Array>
+                ]
+                Optional = []
+            }
+
+        let PixelDataOrImageDataOrHTMLElement = PixelData + T<ImageData> + T<HTMLImageElement> + T<HTMLCanvasElement> + T<HTMLVideoElement>
+
+        let EarlyStoppingCallbackArgs = 
+            Pattern.Config "EarlyStoppingCallbackArgs" {
+                Required = []
+                Optional = [
+                    "monitor", T<string>
+                    "minDelta", T<float>
+                    "patience", T<int>
+                    "verbose", T<int>
+                    "mode", T<string>
+                    "baseline", T<float>
+                    "restoreBestWeights", T<bool>
+                ]
+            }
+
+        let EarlyStopping = 
+            Class "EarlyStopping"
+            |=> Inherits Callback
+            |+> Static [
+                Constructor !?EarlyStoppingCallbackArgs?args
+            ]
+            |+> Instance [
+            
+            ]
+
     [<AutoOpen>]
     module TFCore = 
+        let TensorOrTensorLike = Tensor + TensorLike
+
+        let MomentsResult = 
+            Pattern.Config "MomentsResult" {
+                Required = [
+                    "mean", Tensor.Type
+                    "variance", Tensor.Type
+                ]
+                Optional = []
+            }
+
+        let LSTMCellFunc = Tensor?data * Tensor?c * Tensor?h ^-> !| Tensor
+
+        let TopkResult = 
+            Pattern.Config "TopkResult" {
+                Required = [
+                    "values", Tensor.Type
+                    "indices", Tensor.Type
+                ]
+                Optional = []
+            }
+
+        let UniqueResult = 
+            Class "UniqueResult"
+            |=> Inherits TopkResult
+
+        let MeshgridThridParameter = 
+            Pattern.Config "MeshgridThridParameter" {
+                Required = []
+                Optional = [
+                    "indexing", T<string>
+                ]
+            }
+
+        let GradResult = Tensor?x * !?Tensor?dy ^-> Tensor
+        let GradsResult = (!|TensorOrTensorLike)?args * !?TensorOrTensorLike?dy ^-> !|Tensor
+
+        let ValueAndGradResultReturn = 
+            Pattern.Config "ValueAndGradResultReturn" {
+                Required = [
+                    "value", Tensor.Type
+                    "grad", Tensor.Type
+                ]
+                Optional = []
+            }
+            
+        let ValueAndGradResult = Tensor?x * !?Tensor?dy ^-> ValueAndGradResultReturn
+        let ValueAndGradsResult = (!|Tensor)?args * !?Tensor?dy ^-> ValueAndGradsResultReturn
+
+        let VariableGradsResult = 
+            Pattern.Config "VariableGradsResult" {
+                Required = [
+                    "value", Tensor.Type
+                    "grads", NamedTensorMap
+                ]
+                Optional = []
+            }
+
+        let ProfileFunc = T<unit> ^-> TensorContainer + T<Promise<_>>[TensorContainer]
+        
         let TF = 
-            Class "tf"
+            Class "Tf"
             |+> Static [
                 // Tensors / Creation
-                "tensor" => TensorValuesType?values * !?Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "scalar" => ScalarLike?value * !?T<string>?dtype ^-> TFTensor
-                "tensor1d" => TensorLike1D?values * !?Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "tensor2d" => TensorLike2D?values * !?Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "tensor3d" => TensorLike3D?values * !?Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "tensor4d" => TensorLike4D?values * !?Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "tensor5d" => TensorLike5D?values * !?Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "tensor6d" => TensorLike6D?values * !?Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "buffer" => Shape?shape * !?T<string>?dtype * !?DataTypeMap?values ^-> TFTensorBuffer
-                "fill" => Shape?shape * (T<int> + T<string>)?value * !?T<string>?dtype ^-> TFTensor
-                "eye" => T<float>?numRows * !?T<float>?numColumns * !?T<float[]>?batchShape * !?T<string>?dtype ^-> TFTensor
-                "ones" => Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "onesLike" => TensorAndArrayType?x ^-> TFTensor
-                "zeros" => Shape?shape * !?T<string>?dtype ^-> TFTensor
-                "zerosLike" => TensorAndArrayType?x ^-> TFTensor
-                "clone" => TensorAndArrayType?x  ^-> TFTensor
-                "complex" => TensorAndArrayType?real * TensorAndArrayType?imag ^-> TFTensor
-                "diag" => TFTensor?x ^-> TFTensor
-                "range" => T<int>?start * T<int>?stop * !?T<int>?step * !?T<string>?dtype ^-> TFTensor
-                "real" => TensorAndArrayType?input ^-> TFTensor
-                "imag" => TensorAndArrayType?input ^-> TFTensor
-                "variable" => TFTensor?initialValue  * !?T<bool>?trainable * !?T<string>?name * !?T<string>?dtype ^-> TFVariable
-                "print" => TFTensor?x * !?T<bool>?verbose ^-> T<unit>
-                "truncatedNormal" => Shape?shape * !?T<float>?mean * !?T<float>?stdDev * !?T<string>?dtype * !?T<float>?seed ^-> TFTensor
-                "oneHot" => TensorAndArrayType?indices  * T<float>?depth * !?T<float>?onValue * !?T<float>?offValue * !?T<string>?dtype ^-> TFTensor
-                "linspace" => T<float>?start * T<float>?stop * T<float>?num ^-> TFTensor
+                "tensor" => TensorValuesType?values * !?Shape?shape * !?DataType?dtype ^-> Tensor
+                "scalar" => ScalarLike?value * !?DataType?dtype ^-> Tensor
+                "tensor1d" => TensorLike1D?values * !?DataType?dtype ^-> Tensor
+                "tensor2d" => TensorLike2D?values * !?Shape?shape * !?DataType?dtype ^-> Tensor
+                "tensor3d" => TensorLike3D?values * !?Shape?shape * !?DataType?dtype ^-> Tensor
+                "tensor4d" => TensorLike4D?values * !?Shape?shape * !?DataType?dtype ^-> Tensor
+                "tensor5d" => TensorLike5D?values * !?Shape?shape * !?DataType?dtype ^-> Tensor
+                "tensor6d" => TensorLike6D?values * !?Shape?shape * !?DataType?dtype ^-> Tensor
+                "buffer" => Shape?shape * !?DataType?dtype * !?DataTypeMap?values ^-> TensorBuffer
+                "clone" => TensorOrTensorLike?x  ^-> Tensor
+                "complex" => TensorOrTensorLike?real * TensorOrTensorLike?imag ^-> Tensor
+                "diag" => Tensor?x ^-> Tensor
+                "eye" => T<float>?numRows * !?T<float>?numColumns * !?T<float[]>?batchShape * !?DataType?dtype ^-> Tensor
+                "fill" => Shape?shape * (T<int> + T<string>)?value * !?DataType?dtype ^-> Tensor
+                "imag" => TensorOrTensorLike?input ^-> Tensor
+                "linspace" => T<float>?start * T<float>?stop * T<float>?num ^-> Tensor
+                "oneHot" => TensorOrTensorLike?indices  * T<float>?depth * !?T<float>?onValue * !?T<float>?offValue * !?DataType?dtype ^-> Tensor
+                "ones" => Shape?shape * !?DataType?dtype ^-> Tensor
+                "onesLike" => TensorOrTensorLike?x ^-> Tensor
+                "print" => Tensor?x * !?T<bool>?verbose ^-> T<unit>
+                "range" => T<int>?start * T<int>?stop * !?T<int>?step * !?DataType?dtype ^-> Tensor
+                "real" => TensorOrTensorLike?input ^-> Tensor
+                "truncatedNormal" => Shape?shape * !?T<float>?mean * !?T<float>?stdDev * !?DataType?dtype * !?T<float>?seed ^-> Tensor
+                "variable" => Tensor?initialValue  * !?T<bool>?trainable * !?T<string>?name * !?DataType?dtype ^-> Variable
+                "zeros" => Shape?shape * !?DataType?dtype ^-> Tensor
+                "zerosLike" => TensorOrTensorLike?x ^-> Tensor
 
                 // Tensors / Transformations
-                "batchToSpaceND" => TensorAndArrayType * T<uint[]>?blockShape * T<uint[][]>?crops ^-> TFTensor
-                "broadcastArgs" => TensorAndArrayType?s0 * TensorAndArrayType?s1 ^-> TFTensor
-                "broadcastTo" => TensorAndArrayType?x * Shape?shape ^-> TFTensor
-                "cast" => TensorAndArrayType?x * T<string>?dtype ^-> TFTensor
-                "depthToSpace" => TensorAndArrayType?x * T<int>?blockSize * !?T<string>?dataFormat ^-> TFTensor
-                "ensureShape" => TFTensor?x * Shape?shape ^-> TFTensor
-                "expandDims" => TensorAndArrayType?x * !?T<int>?axis ^-> TFTensor
-                "mirrorPad" => TensorAndArrayType?x * T<int[][]>?paddings * T<string>?mode ^-> TFTensor
-                "pad" => TensorAndArrayType?x * T<int[][]>?paddings * !?T<int>?constantValue ^-> TFTensor
-                "reshape" => TensorAndArrayType?x * Shape?shape ^-> TFTensor
-                "setdiff1dAsync" => TensorAndArrayType?x * TensorAndArrayType?y ^-> T<Promise<_>>[!| !| TFTensor]
-                "spaceToBatchND" => TensorAndArrayType?x * T<int[]>?blockShape * T<int[][]>?paddings ^-> TFTensor
-                "squeeze" => TensorAndArrayType?x * !?T<int[]>?axis ^-> TFTensor
+                "batchToSpaceND" => TensorOrTensorLike * T<uint[]>?blockShape * T<uint[][]>?crops ^-> Tensor
+                "broadcastArgs" => TensorOrTensorLike?s0 * TensorOrTensorLike?s1 ^-> Tensor
+                "broadcastTo" => TensorOrTensorLike?x * Shape?shape ^-> Tensor
+                "cast" => TensorOrTensorLike?x * DataType?dtype ^-> Tensor
+                "depthToSpace" => TensorOrTensorLike?x * T<int>?blockSize * !?T<string>?dataFormat ^-> Tensor
+                "ensureShape" => Tensor?x * Shape?shape ^-> Tensor
+                "expandDims" => TensorOrTensorLike?x * !?T<int>?axis ^-> Tensor
+                "mirrorPad" => TensorOrTensorLike?x * T<int[][]>?paddings * T<string>?mode ^-> Tensor
+                "pad" => TensorOrTensorLike?x * T<int[][]>?paddings * !?T<int>?constantValue ^-> Tensor
+                "reshape" => TensorOrTensorLike?x * Shape?shape ^-> Tensor
+                "setdiff1dAsync" => TensorOrTensorLike?x * TensorOrTensorLike?y ^-> T<Promise<_>>[!| !| Tensor]
+                "spaceToBatchND" => TensorOrTensorLike?x * T<int[]>?blockShape * T<int[][]>?paddings ^-> Tensor
+                "squeeze" => TensorOrTensorLike?x * !?T<int[]>?axis ^-> Tensor
 
                 // Tensors / Slicing and Joining
-                "booleanMaskAsync" => TensorAndArrayType?tensor * TensorAndArrayType?mask * !?T<int>?axis ^-> T<Promise<_>>[TFTensor]
-                "concat" => (!|TFTensor)?tensors * !?T<int>?axis ^-> TFTensor
-                "gather" => TensorAndArrayType?x * TensorAndArrayType?indices * !?T<int>?axis * !?T<int>?batchDims ^-> TFTensor
-                "reverse" => TensorAndArrayType?x * !?IntOrIntArray?axis ^-> TFTensor
-                "slice" => TensorAndArrayType?x * IntOrIntArray?``begin`` * !?IntOrIntArray?size ^-> TFTensor
-                "split" => TensorAndArrayType?x * IntOrIntArray?numOrSizeSplits * !?T<int>?axis ^-> !|TFTensor
-                "stack" => (!|TFTensor)?tensors * !?T<int>?axis ^-> TFTensor
-                "tile" => TensorAndArrayType?x * T<int[]>?reps ^-> TFTensor
-                "unstack" => TensorAndArrayType?x * !?T<int>?axis ^-> !|TFTensor
+                "booleanMaskAsync" => TensorOrTensorLike?tensor * TensorOrTensorLike?mask * !?T<int>?axis ^-> T<Promise<_>>[Tensor]
+                "concat" => (!|Tensor)?tensors * !?T<int>?axis ^-> Tensor
+                "gather" => TensorOrTensorLike?x * TensorOrTensorLike?indices * !?T<int>?axis * !?T<int>?batchDims ^-> Tensor
+                "reverse" => TensorOrTensorLike?x * !?IntOrIntArray?axis ^-> Tensor
+                "slice" => TensorOrTensorLike?x * IntOrIntArray?``begin`` * !?IntOrIntArray?size ^-> Tensor
+                "split" => TensorOrTensorLike?x * IntOrIntArray?numOrSizeSplits * !?T<int>?axis ^-> !|Tensor
+                "stack" => (!|Tensor)?tensors * !?T<int>?axis ^-> Tensor
+                "tile" => TensorOrTensorLike?x * T<int[]>?reps ^-> Tensor
+                "unstack" => TensorOrTensorLike?x * !?T<int>?axis ^-> !|Tensor
 
                 // Tensors / Matrices
-                "einsum" => T<string>?equation * (!|TFTensor)?tensors ^-> TFTensor
+                "einsum" => T<string>?equation * (!|Tensor)?tensors ^-> Tensor
 
                 // Tensors / Random
                 "multinomial" => LogitsType?logits * T<int>?numSamples * !?T<int>?seed * !?T<bool>?normalized ^-> (TensorLike1D + TensorLike2D)
-                "rand" => Shape?shape * (T<unit> ^-> T<float>)?randFunction * !?T<string>?dtype ^-> TFTensor
-                "randomGamma" => Shape?shape * T<float>?alpha * !?T<float>?beta * !?T<string>?dtype * !?T<int>?seed ^-> TFTensor
-                "randomNormal" => Shape?shape * !?T<float>?mean * !?T<float>?stdDev * !?T<string>?dtype * !?T<int>?seed ^-> TFTensor
-                "randomStandardNormal" => Shape?shape * !?T<string>?dtype * !?T<int>?seed ^-> TFTensor
-                "randomUniform" => Shape?shape * !?T<float>?minval * !?T<float>?maxval * !?T<string>?dtype * !?(T<int> + T<string>)?seed ^-> TFTensor
-                "randomUniformInt" => Shape?shape * T<int>?minval * T<int>?maxval * !?(T<int> + T<string>)?seed ^-> TFTensor
+                "rand" => Shape?shape * (T<unit> ^-> T<float>)?randFunction * !?DataType?dtype ^-> Tensor
+                "randomGamma" => Shape?shape * T<float>?alpha * !?T<float>?beta * !?DataType?dtype * !?T<int>?seed ^-> Tensor
+                "randomNormal" => Shape?shape * !?T<float>?mean * !?T<float>?stdDev * !?DataType?dtype * !?T<int>?seed ^-> Tensor
+                "randomStandardNormal" => Shape?shape * !?DataType?dtype * !?T<int>?seed ^-> Tensor
+                "randomUniform" => Shape?shape * !?T<float>?minval * !?T<float>?maxval * !?DataType?dtype * !?(T<int> + T<string>)?seed ^-> Tensor
+                "randomUniformInt" => Shape?shape * T<int>?minval * T<int>?maxval * !?(T<int> + T<string>)?seed ^-> Tensor
 
                 // Models / Creation
-                "sequential" => !?SequentialArgs?config ^-> TFSequential
-                "model" => ContainerArgs?args ^-> TFLayersModel
+                "sequential" => !?SequentialArgs?config ^-> Sequential
+                "model" => ContainerArgs?args ^-> LayersModel
 
                 // Models / Inputs
-                "input" => InputConfig?config ^-> TFSymbolicTensor
+                "input" => InputConfig?config ^-> SymbolicTensor
 
                 // Models / Loading
-                "loadGraphModel" => HandleOrString?modelUrl * LoadOptions?options * IO?tfio ^-> T<Promise<_>>[TFGraphModel]
+                "loadGraphModel" => HandleOrString?modelUrl * LoadOptions?options * IO?tfio ^-> T<Promise<_>>[GraphModel]
                 "browserDownloads" => !?T<string>?fileNamePrefix  ^-> IOHandler
                 "browserFiles" => T<File[]>?files  ^-> IOHandler
                 "http" => T<string>?path * !?LoadOptions?loadOptions ^-> IOHandler
-                "loadGraphModelSync" => (IOHandlerSync + ModelArtifacts + (ModelJSON * T<ArrayBuffer>))?modelSource ^-> TFGraphModel
+                "loadGraphModelSync" => (IOHandlerSync + ModelArtifacts + (ModelJSON * T<ArrayBuffer>))?modelSource ^-> GraphModel
 
                 // Models / Management
                 "copyModel" => T<string>?sourceURL * T<string>?destURL ^-> T<Promise<_>>[ModelArtifactsInfo]
@@ -2434,146 +3142,515 @@ module Definition =
                 "getRegisteredOp" => T<string>?name  ^-> OpMapper
                 "registerOp" => T<string>?name  * OpExecutor?opFunc ^-> T<unit>
 
-                // Layers
-
-                // Operations
-
-                // Training
-
-                // Performance
-
-                // Environment
-
-                // Constraints
-
-                // Initializers
-
-                // Regularizers
-
-                // Data
-
-                // Util
-
-                // Backends
-
-                // Browser
-
-                // Metrics
-
-                // Callbacks
-            ]
-
-        let TFLayers = 
-            Class "tf.Layers"
-            |+> Instance [
                 // Layers / Advanced Activation
-                "elu" => !?ELULayerArgs?args ^-> ELU
-                "leakyReLU" => !?LeakyReLULayerArgs?args ^-> LeakyReLU
-                "prelu" => !?PReLULayerArgs?args ^-> PReLU
-                "reLU" => !?ReLULayerArgs?args ^-> ReLU
-                "softmax" => !?SoftmaxLayerArgs?args ^-> Softmax
-                "thresholdedReLU" => !?ThresholdedReLULayerArgs?args ^-> ThresholdedReLU
+                "layers.Elu" => !?ELULayerArgs?args ^-> ELU
+                "layers.LeakyReLU" => !?LeakyReLULayerArgs?args ^-> LeakyReLU
+                "layers.Prelu" => !?PReLULayerArgs?args ^-> PReLU
+                "layers.ReLU" => !?ReLULayerArgs?args ^-> ReLU
+                "layers.Softmax" => !?SoftmaxLayerArgs?args ^-> Softmax
+                "layers.ThresholdedReLU" => !?ThresholdedReLULayerArgs?args ^-> ThresholdedReLU
 
                 // Layers / Basic
-                "activation" => ActivationLayerArgs?args ^-> Activation
-                "dense" => DenseLayerArgs?args ^-> Dense
-                "dropout" => DropoutLayerArgs?args ^-> Dropout
-                "embedding" => EmbeddingLayerArgs?args ^-> Embedding
-                "flatten" => !?FlattenLayerArgs?args ^-> Flatten
-                "permute" => PermuteLayerArgs?args ^-> Permute
-                "repeatVector" => RepeatVectorLayerArgs?args ^-> RepeatVector
-                "reshape" => ReshapeLayerArgs?args ^-> Reshape
-                "spatialDropout1d" => SpatialDropout1DLayerConfig?args ^-> SpatialDropout1D
+                "layers.Activation" => ActivationLayerArgs?args ^-> Activation
+                "layers.Dense" => DenseLayerArgs?args ^-> Dense
+                "layers.Dropout" => DropoutLayerArgs?args ^-> Dropout
+                "layers.Embedding" => EmbeddingLayerArgs?args ^-> Embedding
+                "layers.Flatten" => !?FlattenLayerArgs?args ^-> Flatten
+                "layers.Permute" => PermuteLayerArgs?args ^-> Permute
+                "layers.RepeatVector" => RepeatVectorLayerArgs?args ^-> RepeatVector
+                "layers.Reshape" => ReshapeLayerArgs?args ^-> Reshape
+                "layers.SpatialDropout1d" => SpatialDropout1DLayerConfig?args ^-> SpatialDropout1D
     
                 // Layers / Convolutional
-                "conv1d" => ConvLayerArgs?args ^-> Conv1D
-                "conv2d" => ConvLayerArgs?args ^-> Conv2D
-                "conv2dTranspose" => ConvLayerArgs?args ^-> Conv2DTranspose
-                "conv3d" => ConvLayerArgs?args ^-> Conv3D
-                "cropping2D" => Cropping2DLayerArgs?args ^-> Cropping2D
-                "depthwiseConv2d" => DepthwiseConv2DLayerArgs?args ^-> DepthwiseConv2D
-                "separableConv2d" => SeparableConvLayerArgs?args ^-> SeparableConv2D
-                "upSampling2d" => UpSampling2DLayerArgs?args ^-> UpSampling2D
+                "layers.Conv1d" => ConvLayerArgs?args ^-> Conv1D
+                "layers.Conv2d" => ConvLayerArgs?args ^-> Conv2D
+                "layers.Conv2dTranspose" => ConvLayerArgs?args ^-> Conv2DTranspose
+                "layers.Conv3d" => ConvLayerArgs?args ^-> Conv3D
+                "layers.Cropping2D" => Cropping2DLayerArgs?args ^-> Cropping2D
+                "layers.DepthwiseConv2d" => DepthwiseConv2DLayerArgs?args ^-> DepthwiseConv2D
+                "layers.SeparableConv2d" => SeparableConvLayerArgs?args ^-> SeparableConv2D
+                "layers.UpSampling2d" => UpSampling2DLayerArgs?args ^-> UpSampling2D
 
                 // Layers / Merge
-                "add" => !?LayerArgs?args ^-> Add
-                "average" => !?LayerArgs?args ^-> Average
-                "concatenate" => !?ConcatenateLayerArgs?args ^-> Concatenate
-                "maximum" => !?LayerArgs?args ^-> Maximum
-                "minimum" => !?LayerArgs?args ^-> Minimum
-                "multiply" => !?LayerArgs?args ^-> Multiply
+                "layers.Add" => !?LayerArgs?args ^-> Add
+                "layers.Average" => !?LayerArgs?args ^-> Average
+                "layers.Concatenate" => !?ConcatenateLayerArgs?args ^-> Concatenate
+                "layers.Maximum" => !?LayerArgs?args ^-> Maximum
+                "layers.Minimum" => !?LayerArgs?args ^-> Minimum
+                "layers.Multiply" => !?LayerArgs?args ^-> Multiply
 
                 // Layers / Normalization
-                "batchNormalization" => !?BatchNormalizationLayerArgs?args ^-> BatchNormalization
-                "layerNormalization" => !?LayerNormalizationLayerArgs?args ^-> LayerNormalization
+                "layers.BatchNormalization" => !?BatchNormalizationLayerArgs?args ^-> BatchNormalization
+                "layers.LayerNormalization" => !?LayerNormalizationLayerArgs?args ^-> LayerNormalization
 
                 // Layers / Pooling
-                "averagePooling1d" => Pooling1DLayerArgs?args ^-> AveragePooling1D 
-                "averagePooling2d" =>  Pooling2DLayerArgs?args ^-> AveragePooling2D 
-                "averagePooling3d" =>  Pooling3DLayerArgs?args ^-> AveragePooling3D 
-                "globalAveragePooling1d" => !?LayerArgs?args ^-> GlobalAveragePooling1D 
-                "globalAveragePooling2d" => GlobalPooling2DLayerArgs?args ^-> GlobalAveragePooling2D 
-                "globalMaxPooling1d" =>  !?LayerArgs?args ^-> GlobalMaxPooling1D 
-                "globalMaxPooling2d" =>  GlobalPooling2DLayerArgs?args ^-> GlobalMaxPooling2D 
-                "maxPooling1d" =>  Pooling1DLayerArgs?args ^-> MaxPooling1D 
-                "maxPooling2d" =>  Pooling2DLayerArgs?args ^-> MaxPooling2D 
-                "maxPooling3d" =>  Pooling3DLayerArgs?args ^-> MaxPooling3D 
+                "layers.AveragePooling1d" => Pooling1DLayerArgs?args ^-> AveragePooling1D 
+                "layers.AveragePooling2d" =>  Pooling2DLayerArgs?args ^-> AveragePooling2D 
+                "layers.AveragePooling3d" =>  Pooling3DLayerArgs?args ^-> AveragePooling3D 
+                "layers.GlobalAveragePooling1d" => !?LayerArgs?args ^-> GlobalAveragePooling1D 
+                "layers.GlobalAveragePooling2d" => GlobalPooling2DLayerArgs?args ^-> GlobalAveragePooling2D 
+                "layers.GlobalMaxPooling1d" =>  !?LayerArgs?args ^-> GlobalMaxPooling1D 
+                "layers.GlobalMaxPooling2d" =>  GlobalPooling2DLayerArgs?args ^-> GlobalMaxPooling2D 
+                "layers.MaxPooling1d" =>  Pooling1DLayerArgs?args ^-> MaxPooling1D 
+                "layers.MaxPooling2d" =>  Pooling2DLayerArgs?args ^-> MaxPooling2D 
+                "layers.MaxPooling3d" =>  Pooling3DLayerArgs?args ^-> MaxPooling3D 
                 
                 // Layers / Recurrent
-                "convLstm2d" => ConvLSTM2DArgs?args ^-> ConvLSTM2D 
-                "convLstm2dCell" => ConvLSTM2DCellArgs?args ^-> ConvLSTM2DCell
-                "gru" => GRULayerArgs?args ^-> GRU
-                "gruCell" => GRUCellLayerArgs?args ^-> GRUCell
-                "lstm" => LSTMLayerArgs?args ^-> LSTM
-                "lstmCell" => LSTMCellLayerArgs?args ^-> LSTMCell
-                "rnn" => RNNLayerArgs?args ^-> RNN
-                "simpleRNN" => SimpleRNNLayerArgs?args ^-> SimpleRNN
-                "simpleRNNCell" => SimpleRNNCellLayerArgs?args ^-> SimpleRNNCell
-                "stackedRNNCells" => StackedRNNCellsArgs?args ^-> StackedRNNCells
+                "layers.ConvLstm2d" => ConvLSTM2DArgs?args ^-> ConvLSTM2D 
+                "layers.ConvLstm2dCell" => ConvLSTM2DCellArgs?args ^-> ConvLSTM2DCell
+                "layers.Gru" => GRULayerArgs?args ^-> GRU
+                "layers.GruCell" => GRUCellLayerArgs?args ^-> GRUCell
+                "layers.Lstm" => LSTMLayerArgs?args ^-> LSTM
+                "layers.LstmCell" => LSTMCellLayerArgs?args ^-> LSTMCell
+                "layers.Rnn" => RNNLayerArgs?args ^-> RNN
+                "layers.SimpleRNN" => SimpleRNNLayerArgs?args ^-> SimpleRNN
+                "layers.SimpleRNNCell" => SimpleRNNCellLayerArgs?args ^-> SimpleRNNCell
+                "layers.StackedRNNCells" => StackedRNNCellsArgs?args ^-> StackedRNNCells
 
                 // Layers / Wrapper
-                "bidirectional" => BidirectionalLayerArgs?args ^-> Bidirectional
-                "timeDistributed" => WrapperLayerArgs?args ^-> TimeDistributed
+                "layers.Bidirectional" => BidirectionalLayerArgs?args ^-> Bidirectional
+                "layers.TimeDistributed" => WrapperLayerArgs?args ^-> TimeDistributed
 
                 // Layers / Inputs
-                "inputLayer" => InputLayerArgs?args ^-> InputLayer
+                "layers.InputLayer" => InputLayerArgs?args ^-> InputLayer
 
                 // Layers / Padding
-                "zeroPadding2d" => !?ZeroPadding2DLayerArgs?args ^-> ZeroPadding2D
+                "layers.ZeroPadding2d" => !?ZeroPadding2DLayerArgs?args ^-> ZeroPadding2D
 
                 // Layers / Noise
-                "alphaDropout" => AlphaDropoutArgs?args ^-> AlphaDropout
-                "gaussianDropout" => GaussianDropoutArgs?args ^-> GaussianDropout
-                "gaussianNoise" => GaussianNoiseArgs?args ^-> GaussianNoise
+                "layers.AlphaDropout" => AlphaDropoutArgs?args ^-> AlphaDropout
+                "layers.GaussianDropout" => GaussianDropoutArgs?args ^-> GaussianDropout
+                "layers.GaussianNoise" => GaussianNoiseArgs?args ^-> GaussianNoise
 
                 // Layers / Mask
-                "masking" => MaskingArgs?args ^-> Masking
+                "layers.Masking" => MaskingArgs?args ^-> Masking
 
                 // Layers / Rescaling
-                "rescaling" => !?RescalingArgs?args ^-> Rescaling
+                "layers.Rescaling" => !?RescalingArgs?args ^-> Rescaling
 
                 // Layers / CenterCrop
-                "rescaling" => !?CenterCropArgs?args ^-> CenterCrop
+                "layers.Rescaling" => !?CenterCropArgs?args ^-> CenterCrop
 
                 // Layers / Resizing
-                "resizing" => !?ResizingArgs?args ^-> Resizing
+                "layers.Resizing" => !?ResizingArgs?args ^-> Resizing
 
                 // Layers / CategoryEncoding
-                "categoryEncoding" => CategoryEncodingArgs?args ^-> CategoryEncoding
+                "layers.CategoryEncoding" => CategoryEncodingArgs?args ^-> CategoryEncoding
 
                 //Layers / RandomWidth
-                "randomWidth" => RandomWidthArgs?args ^-> RandomWidth
+                "layers.RandomWidth" => RandomWidthArgs?args ^-> RandomWidth
+
+                // Operations / Arithmetic
+                "add" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "sub" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "mul" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "div" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "addN" => (!|TensorOrTensorLike)?tensor ^-> Tensor
+                "divNoNan" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "floorDiv" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "maximum" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "minimum" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "mod" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "pow" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "squaredDifference" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+
+                // Operations / Basic math
+                "abs" => TensorOrTensorLike?x ^-> Tensor 
+                "acos" => TensorOrTensorLike?x ^-> Tensor 
+                "acosh" => TensorOrTensorLike?x ^-> Tensor 
+                "asin" => TensorOrTensorLike?x ^-> Tensor 
+                "asinh" => TensorOrTensorLike?x ^-> Tensor 
+                "atan" => TensorOrTensorLike?x ^-> Tensor 
+                "atan2" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor 
+                "atanh" => TensorOrTensorLike?x ^-> Tensor 
+                "ceil" => TensorOrTensorLike?x ^-> Tensor 
+                "clipByValue" => TensorOrTensorLike?x * T<float>?clipValueMin * T<float>?clipValueMax ^-> Tensor 
+                "cos" => TensorOrTensorLike?x ^-> Tensor 
+                "cosh" => TensorOrTensorLike?x ^-> Tensor 
+                "elu" => TensorOrTensorLike?x ^-> Tensor 
+                "erf" => TensorOrTensorLike?x ^-> Tensor 
+                "exp" => TensorOrTensorLike?x ^-> Tensor 
+                "expm1" => TensorOrTensorLike?x ^-> Tensor 
+                "floor" => TensorOrTensorLike?x ^-> Tensor 
+                "isFinite" => TensorOrTensorLike?x ^-> Tensor 
+                "isInf" => TensorOrTensorLike?x ^-> Tensor 
+                "isNaN" => TensorOrTensorLike?x ^-> Tensor 
+                "leakyRelu" => TensorOrTensorLike?x * !? T<float>?alpha ^-> Tensor 
+                "log" => TensorOrTensorLike?x ^-> Tensor 
+                "log1p" => TensorOrTensorLike?x ^-> Tensor 
+                "logSigmoid" => TensorOrTensorLike?x ^-> Tensor 
+                "neg" => TensorOrTensorLike?x ^-> Tensor 
+                "prelu" => TensorOrTensorLike?x * TensorOrTensorLike?alpha  ^-> Tensor 
+                "reciprocal" => TensorOrTensorLike?x ^-> Tensor 
+                "relu" => TensorOrTensorLike?x ^-> Tensor 
+                "relu6" => TensorOrTensorLike?x ^-> Tensor 
+                "round" => TensorOrTensorLike?x ^-> Tensor 
+                "rsqrt" => TensorOrTensorLike?x ^-> Tensor 
+                "selu" => TensorOrTensorLike?x ^-> Tensor 
+                "sigmoid" => TensorOrTensorLike?x ^-> Tensor 
+                "sign" => TensorOrTensorLike?x ^-> Tensor 
+                "sin" => TensorOrTensorLike?x ^-> Tensor 
+                "sinh" => TensorOrTensorLike?x ^-> Tensor 
+                "softplus" => TensorOrTensorLike?x ^-> Tensor 
+                "sqrt" => TensorOrTensorLike?x ^-> Tensor 
+                "square" => TensorOrTensorLike?x ^-> Tensor 
+                "step" => TensorOrTensorLike?x * !? T<float>?alpha ^-> Tensor 
+                "tan" => TensorOrTensorLike?x ^-> Tensor 
+                "tanh" => TensorOrTensorLike?x ^-> Tensor 
+
+                // Operations / Matrices
+                "dot" => TensorOrTensorLike?t1 * TensorOrTensorLike?t2 ^-> Tensor 
+                "euclideanNorm" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims  ^-> Tensor 
+                "matMul" => TensorOrTensorLike?a * TensorOrTensorLike?b * !? T<bool>?transposeA * !? T<bool>?transposeB ^-> Tensor 
+                "norm" => TensorOrTensorLike?x * !? (T<int> + T<string>)?ord * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor 
+                "outerProduct" => TensorOrTensorLike?v1 * TensorOrTensorLike?v2 ^-> Tensor 
+                "transpose" => TensorOrTensorLike?x * !? T<int[]>?perm * !? T<bool>?conjugate  ^-> Tensor 
+
+                // Operations / Convolution
+                "avgPool" => TensorOrTensorLike?x * IntOrIntArray?filterSize * IntOrIntArray?strides * StringOrIntOrIntArray?pad * !? T<string>?dimRoundingMode  ^-> Tensor
+                "avgPool3d" => TensorOrTensorLike?x * IntOrIntArray?filterSize * IntOrIntArray?strides * StringOrIntOrIntArray?pad * !? T<string>?dimRoundingMode * !? T<string>?dataFormat ^-> Tensor
+                "conv1d" => TensorOrTensorLike?x * TensorOrTensorLike?fiter * T<int>?stride * StringOrIntOrIntArray?pad * !? T<string>?dimRoundingMode * T<int>?dilation * !? T<string>?dataFormat ^-> Tensor
+                "conv2d" => TensorOrTensorLike?x * TensorOrTensorLike?fiter * IntOrIntArray?strides * StringOrIntOrIntArray?pad * !? T<string>?dimRoundingMode * IntOrIntArray?dilations * !? T<string>?dataFormat ^-> Tensor
+                "conv2dTranspose" => TensorOrTensorLike?x * TensorOrTensorLike?fiter * T<int[]>?outputShape * IntOrIntArray?strides * StringOrIntOrIntArray?pad * !? T<string>?dimRoundingMode ^-> Tensor
+                "conv3d" => TensorOrTensorLike?x * TensorOrTensorLike?filter  * IntOrIntArray?strides  * T<string>?pad * !? T<string>?dataFormat * !? IntOrIntArray?dilations ^-> Tensor
+                "conv3dTranspose" => TensorOrTensorLike?x * TensorOrTensorLike?filter * T<int[]>?outputShape * IntOrIntArray?strides * T<string>?pad ^-> Tensor
+                "depthwiseConv2d" => TensorOrTensorLike?x * TensorOrTensorLike?filter * IntOrIntArray?strides * StringOrIntOrIntArray?pad * !? T<string>?dataFormat * !? IntOrIntArray?dilations * !? T<string>?dimRoundingMode ^-> Tensor
+                "dilation2d" => TensorOrTensorLike?x * TensorOrTensorLike?filter * IntOrIntArray?strides * T<string>?pad * !? IntOrIntArray?dilations * !? T<string>?dataFormat ^-> Tensor
+                "maxPool3d" => TensorOrTensorLike?x * IntOrIntArray?filterSize * IntOrIntArray?strides * StringOrInt?pad * !? T<string>?dimRoundingMode * !? T<string>?dataFormat ^-> Tensor
+                "maxPoolWithArgmax" => TensorOrTensorLike?x * IntOrIntArray?filterSize * IntOrIntArray?strides * StringOrInt?pad * !? T<bool>?includeBatchInIndex ^-> T<obj[]>
+                "pool" => TensorOrTensorLike?input * IntOrIntArray?windowShape * T<string>?poolingType  * StringOrIntOrIntArray?pad * !? IntOrIntArray?dilations * !? IntOrIntArray?strides * !? T<string>?dimRoundingMode ^-> Tensor
+                "separableConv2d" => TensorOrTensorLike?x * TensorOrTensorLike?depthwiseFilter  * TensorOrTensorLike?pointwiseFilter * IntOrIntArray?strides * T<string>?pad * !? IntOrIntArray?dilations * !? T<string>?datFormat ^-> Tensor  
+
+                // Operations / Reduction
+                "all" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor
+                "any" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor
+                "argMax" => TensorOrTensorLike?x * !? T<int>?axis ^-> Tensor
+                "argMin" => TensorOrTensorLike?x * !? T<int>?axis ^-> Tensor
+                "bincount" => TensorOrTensorLike?x * TensorOrTensorLike?weights * T<int>?size ^-> Tensor
+                "denseBincount" => TensorOrTensorLike?x * TensorOrTensorLike?weights * T<int>?size * !? T<bool>?binaryOutput ^-> Tensor
+                "logSumExp" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor
+                "max" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor
+                "mean" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor
+                "min" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor
+                "prod" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor
+                "sum" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> Tensor    
+
+                // Operations / Normalization
+                "batchNorm" => TensorOrTensorLike?x * TensorOrTensorLike?mean * TensorOrTensorLike?variance * !? TensorOrTensorLike?offset * !? TensorOrTensorLike?scale * !? T<float>?varianceEpsilon ^-> Tensor
+                "localResponseNormalization" => TensorOrTensorLike?x * !? T<int>?depthRadius * !? T<float>?bias * !? T<float>?alpha * !? T<float>?beta ^-> Tensor
+                "logSoftmax" => TensorOrTensorLike?logits * !? T<int>?axis ^-> Tensor
+                "moments" => TensorOrTensorLike?x * !? IntOrIntArray?axis * !? T<bool>?keepDims ^-> MomentsResult
+                "softmax" => TensorOrTensorLike?logits * !? T<int>?dim ^-> Tensor
+                "sparseToDense" => TensorOrTensorLike?sparseIndices * TensorOrTensorLike?sparseValues * T<int[]>?outputShape * !? TensorOrTensorLike?defaultValue ^-> Tensor
+
+                // Operations / Images
+                "Image.CropAndResize" => TensorOrTensorLike?image * TensorOrTensorLike?boxes * TensorOrTensorLike?boxInd * IntOrIntArray?cropSize * !? T<string>?method * !? T<float>?extrapolationValue ^-> Tensor
+                "Image.FlipLeftRight" => TensorOrTensorLike?image ^-> Tensor
+                "Image.GrayscaleToRGB" => TensorOrTensorLike?image ^-> Tensor
+                "Image.NonMaxSuppression" => TensorOrTensorLike?boxes * TensorOrTensorLike?scores * T<int>?maxOutputSize * !? T<float>?iouThreshold * !? T<float>?scoreThreshold ^-> Tensor
+                "Image.NonMaxSuppressionAsync" => TensorOrTensorLike?boxes * TensorOrTensorLike?scores * T<int>?maxOutputSize * !? T<float>?iouThreshold * !? T<float>?scoreThreshold ^-> T<Promise<_>>[Tensor]
+                "Image.NonMaxSuppressionPadded" => TensorOrTensorLike?boxes * TensorOrTensorLike?scores * T<int>?maxOutputSize * !? T<float>?iouThreshold * !? T<float>?scoreThreshold * !? T<bool>?padToMaxOutputSize ^-> T<obj[]>
+                "Image.NonMaxSuppressionPaddedAsync" => TensorOrTensorLike?boxes * TensorOrTensorLike?scores * T<int>?maxOutputSize * !? T<float>?iouThreshold * !? T<float>?scoreThreshold * !? T<bool>?padToMaxOutputSize ^-> T<Promise<obj[]>>
+                "Image.NonMaxSuppressionWithScore" => TensorOrTensorLike?boxes * TensorOrTensorLike?scores * T<int>?maxOutputSize * !? T<float>?iouThreshold * !? T<float>?scoreThreshold * !? T<float>?softNmsSigma ^-> T<obj[]>
+                "Image.NonMaxSuppressionWithScoreAsync" => TensorOrTensorLike?boxes * TensorOrTensorLike?scores * T<int>?maxOutputSize * !? T<float>?iouThreshold * !? T<float>?scoreThreshold * !? T<float>?softNmsSigma ^-> T<Promise<obj[]>>
+                "Image.ResizeBilinear" => TensorOrTensorLike?images * T<int[]>?size * !? T<bool>?alignCorners * !? T<bool>?halfPixelCenters ^-> Tensor
+                "Image.ResizeNearestNeighbor" => TensorOrTensorLike?images * T<int[]>?size * !? T<bool>?alignCorners * !? T<bool>?halfPixelCenters ^-> Tensor
+                "Image.RgbToGrayscale" => TensorOrTensorLike?image ^-> Tensor
+                "Image.RotateWithOffset" => TensorOrTensorLike?image * T<float>?radians * !? FloatOrFloatArray?fillValue * !? FloatOrFloatArray?center ^-> Tensor
+                "Image.Transform" => TensorOrTensorLike?image * TensorOrTensorLike?transforms * !? T<string>?interpolation * !? T<string>?fillMode * !? T<float>?fillValue * !? T<int[]>?outputShape ^-> Tensor
+         
+                // Operations / RNN
+                "basicLSTMCell" => TensorOrTensorLike?forgetBias * TensorOrTensorLike?lstmKernel * TensorOrTensorLike?lstmBias * TensorOrTensorLike?data * TensorOrTensorLike?c * TensorOrTensorLike?h ^-> !|Tensor
+                "multiRNNCell" => (!|LSTMCellFunc)?lstmCells * TensorOrTensorLike?data * (!|TensorOrTensorLike)?c * (!|TensorOrTensorLike)?h ^-> !| (!|Tensor)
+                
+                // Operations / Logical
+                "bitwiseAnd" => Tensor?x * Tensor?y ^-> Tensor
+                "equal" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "greater" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "greaterEqual" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "less" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "lessEqual" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "logicalAnd" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "logicalNot" => Tensor?x ^-> Tensor
+                "logicalOr" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "logicalXor" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "notEqual" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "where" => TensorOrTensorLike?condition * TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
+                "whereAsync" => Tensor?condition ^-> T<Promise<_>>[Tensor]
+
+                // Operations / Scan
+                "cumprod" => TensorOrTensorLike?x * !?T<int>?axis * !?T<bool>?exclusive * !?T<bool>?reverse ^-> Tensor
+                "cumsum" => TensorOrTensorLike?x * !?T<int>?axis * !?T<bool>?exclusive * !?T<bool>?reverse ^-> Tensor
+   
+                // Operations / Evaluation
+                "confusionMatrix" => TensorOrTensorLike?labels * TensorOrTensorLike?predictions * T<int>?numClasses ^-> Tensor
+                "inTopKAsync" => TensorOrTensorLike?predictions * TensorOrTensorLike?targets * !?T<int>?k ^-> T<Promise<_>>[Tensor]
+                "lowerBound" => TensorOrTensorLike?sortedSequence * TensorOrTensorLike?values ^-> Tensor
+                "searchSorted" => TensorOrTensorLike?sortedSequence * TensorOrTensorLike?values * !?T<string>?side ^-> Tensor
+                "topk" => TensorOrTensorLike?x * !?T<int>?k * !?T<bool>?sorted ^-> TopkResult
+                "unique" => TensorOrTensorLike?x * !?T<int>?axis ^-> UniqueResult
+                "upperBound" => TensorOrTensorLike?sortedSequence * TensorOrTensorLike?values ^-> Tensor
+
+                // Operations / Slicing and Joining
+                "gatherND" => TensorOrTensorLike?x * TensorOrTensorLike?indices ^-> Tensor
+                "meshgrid" => !?TensorOrTensorLike?x * !?TensorOrTensorLike?y * !?MeshgridThridParameter ^-> !|Tensor
+                "scatterND" => TensorOrTensorLike?indices * TensorOrTensorLike?updates * Shape?shape ^-> Tensor
+                "stridedSlice" => TensorOrTensorLike?x * T<int[]>?``begin`` * T<int[]>?``end`` * !?T<int[]>?strides * !?T<int>?beginMask * !?T<int>?endMask * !?T<int>?ellipsisMask * !?T<int>?newAxisMask * !?T<int>?shrinkAxisMask ^-> Tensor
+                "tensorScatterUpdate" => TensorOrTensorLike?tensor * TensorOrTensorLike?indices * TensorOrTensorLike?updates ^-> Tensor
+    
+                // Operations / Ragged
+                "raggedTensorToTensor" => TensorOrTensorLike?shape * TensorOrTensorLike?values * TensorOrTensorLike?defaultValue * (!|Tensor)?rowPartitionTensors * T<string[]>?rowPartitionTypes ^-> Tensor
+                
+                // Operations / Spectral
+                "spectral.Fft" => Tensor?input ^-> Tensor
+                "spectral.Ifft" => Tensor?input ^-> Tensor
+                "spectral.Irfft" => Tensor?input ^-> Tensor
+                "spectral.Rfft" => Tensor?input * !?T<int>?fftLength ^-> Tensor
+
+                // Operations / Segment
+                "unsortedSegmentSum" => TensorOrTensorLike?x * TensorOrTensorLike?segmentIds * T<int>?numSegments ^-> Tensor
+
+                // Operations / Moving Average
+                "movingAverage" => TensorOrTensorLike?v * TensorOrTensorLike?x * IntOrTensor?decay * !?IntOrTensor?step * !?T<bool>?zeroDebias ^-> Tensor
+
+                // Operations / Dropout
+                "dropout" => TensorOrTensorLike?x * T<int>?rate * !?Shape?noiseShape * !?(T<int> + T<string>)?seed ^-> Tensor
+
+                //Operations / Signal
+                "signal.Frame" => Tensor?signal * T<int>?frameLength * T<int>?frameStep * !?T<bool>?padEnd * !?T<int>?padValue ^-> Tensor
+                "signal.HammingWindow" => T<int>?windowLength ^-> Tensor
+                "signal.HannWindow" => T<int>?windowLength ^-> Tensor
+                "signal.Stft" => Tensor?signal * T<int>?frameLength * T<int>?frameStep * !?T<int>?fftLength * !?WindowFn?windowFn ^-> Tensor
+
+                // Operations / Linear Algebra
+                "linalg.BandPart" => TensorOrTensorLike?a * IntOrTensor?numLower * IntOrTensor?numUpper ^-> Tensor
+                "linalg.GramSchmidt" => TensorOrTensorArray?xs ^-> Tensor + !|Tensor
+                "linalg.Qr" => Tensor?x * !?T<bool>?fullMatrices ^-> !|Tensor
+
+                // Operations / Sparse
+                "sparse.SparseFillEmptyRows" => TensorOrTensorLike?indices * TensorOrTensorLike?values * TensorOrTensorLike?denseShape * TensorOrTensorLike?defaultValue ^-> T<obj[]>
+                "sparse.SparseReshape" => TensorOrTensorLike?inputIndices * TensorOrTensorLike?inputShape * TensorOrTensorLike?newShape ^-> T<obj[]>
+                "sparse.SparseSegmentMean" => TensorOrTensorLike?data * TensorOrTensorLike?indices * TensorOrTensorLike?segmentIds ^-> Tensor
+                "sparse.SparseSegmentSum" => TensorOrTensorLike?data * TensorOrTensorLike?indices * TensorOrTensorLike?segmentIds ^-> Tensor
+
+                // Operations / String
+                "staticRegexReplace" => TensorOrTensorLike?input * T<string>?pattern * T<string>?rewrite * !?T<bool>?replaceGlobal ^-> Tensor
+                "stringNGrams" => TensorOrTensorLike?data * TensorOrTensorLike?dataSplits * T<string>?separator * T<int[]>?nGramWidths * T<string>?leftPad * T<string>?rightPad * T<int>?padWidth * T<bool>?preserveShortSequences ^-> T<obj[]>
+                "stringSplit" => TensorOrTensorLike?input * TensorOrTensorLike?delimiter * !?T<bool>?skipEmpty ^-> T<obj[]>
+                "stringToHashBucketFast" => TensorOrTensorLike?input * T<int>?numBuckets ^-> Tensor
+    
+                // Training / Gradients
+                "grad" => GradFunc?f ^-> GradResult          
+                "grads" => GradsFunc?f ^-> GradsResult                
+                "customGrad" => CustomGradientFunc?f ^-> ((!|Tensor)?args ^-> Tensor)                
+                "valueAndGrad" => (Tensor?x ^-> Tensor)?f ^-> ValueAndGradResult             
+                "valueAndGrads" => ((!|Tensor)?args ^-> Tensor)?f ^-> ValueAndGradsResult            
+                "variableGrads" => (T<unit> ^-> Tensor)?f * !?(!|Variable)?varList ^-> VariableGradsResult      
+                
+                // Training / Optimizers
+                "train.Sgd" => T<float>?learningRate ^-> SGDOptimizer              
+                "train.Momentum" => T<float>?learningRate * T<float>?momentum * !?T<bool>?useNesterov ^-> MomentumOptimizer    
+                "train.Adagrad" => T<float>?learningRate * T<float>?initialAccumulatorValue ^-> AdagradOptimizer
+                "train.Adadelta" => !?T<float>?learningRate * !?T<float>?rho * !?T<float>?epsilon ^-> AdadeltaOptimizer
+                "train.Adam" => !?T<float>?learningRate * !?T<float>?beta1 * !?T<float>?beta2 * !?T<float>?epsilon ^-> AdamOptimizer
+                "train.Adamax" => !?T<float>?learningRate * !?T<float>?beta1 * !?T<float> * !?T<float>?epsilon * !?T<float>?decay ^-> AdamaxOptimizer
+                "train.Rmsprop" => T<float>?learningRate * !?T<float>?decay * !?T<float>?momentum * !?T<float>?epsilon * !?T<bool>?centered ^-> RMSPropOptimizer
+
+                // Training / Losses
+                "losses.AbsoluteDifference" => TensorOrTensorLike?labels * TensorOrTensorLike?predictions * !?TensorOrTensorLike?weights * !?Reduction?reduction ^-> Tensor
+                "losses.ComputeWeightedLoss" => TensorOrTensorLike?losses * !?TensorOrTensorLike?weights * !?Reduction?reduction ^-> Tensor
+                "losses.CosineDistance" => TensorOrTensorLike?labels * TensorOrTensorLike?predictions * T<int>?axis * !?TensorOrTensorLike?weights * !?Reduction?reduction ^-> Tensor
+                "losses.CingeLoss" => TensorOrTensorLike?labels * TensorOrTensorLike?predictions * !?TensorOrTensorLike?weights * !?Reduction?reduction ^-> Tensor
+                "losses.HuberLoss" => TensorOrTensorLike?labels * TensorOrTensorLike?predictions * !?TensorOrTensorLike?weights * !?T<int>?delta * !?Reduction?reduction ^-> Tensor
+                "losses.LogLoss" => TensorOrTensorLike?labels * TensorOrTensorLike?predictions * !?TensorOrTensorLike?weights * !?T<int>?epsilon * !?Reduction?reduction ^-> Tensor
+                "losses.MeanSquaredError" => TensorOrTensorLike?labels * TensorOrTensorLike?predictions * !?TensorOrTensorLike?weights * !?Reduction?reduction ^-> Tensor
+                "losses.SigmoidCrossEntropy" => TensorOrTensorLike?multiClassLabels * TensorOrTensorLike?logits * !?TensorOrTensorLike?weights * !?T<int>?labelSmoothing * !?Reduction?reduction ^-> Tensor
+                "losses.SoftmaxCrossEntropy" => TensorOrTensorLike?onehotLabels * TensorOrTensorLike?logits * !?TensorOrTensorLike?weights * !?T<int>?labelSmoothing * !?Reduction?reduction ^-> Tensor
+                
+                // Performance / Memory
+                "tidy" => (T<string> + ScopeFn)?nameOrFn * !?ScopeFn?fn ^-> TensorContainer
+                "dispose" => TensorContainer?container ^-> T<unit>
+                "keep" => Tensor?result ^-> Tensor
+                "memory" => T<unit> ^-> MemoryInfo
+
+                // Performance / Timing
+                "time" => (T<unit> ^-> T<unit>)?f ^-> T<Promise<_>>[TimingInfo]
+                "nextFrame" => T<unit> ^-> T<Promise<unit>>
+
+                // Performance / Profile
+                "profile" => ProfileFunc?f ^-> T<Promise<_>>[ProfileInfo]
+
+                // Environment
+                "disposeVariables" => T<unit> ^-> T<unit>
+                "enableDebugMode" => T<unit> ^-> T<unit>
+                "enableProdMode" => T<unit> ^-> T<unit>
+                "engine" => T<unit> ^-> Engine
+                "env" => T<unit> ^-> Environment
+
+                // Constraints
+                "constraints.MaxNorm" => MaxNormArgs?args ^-> Constraint
+                "constraints.MinMaxNorm" => MinMaxNormArgs?config ^-> Constraint
+                "constraints.NonNeg" => T<unit> ^-> Constraint
+                "constraints.UnitNorm" => UnitNormArgs?args ^-> Constraint
+
+                // Initializers
+                "initializers.Constant" => ConstantArgs?args ^-> Initializer               
+                "initializers.GlorotNormal" => GlorotNormalArgs?args ^-> Initializer
+                "initializers.GlorotUniform" => GlorotUniformArgs?args ^-> Initializer
+                "initializers.HeNormal" => HeNormalArgs?args ^-> Initializer
+                "initializers.HeUniform" => HeUniformArgs?args ^-> Initializer
+                "initializers.Identity" => IdentityArgs?args ^-> Initializer
+                "initializers.LeCunNormal" => LeCunNormalArgs?args ^-> Initializer
+                "initializers.LeCunUniform" => LeCunUniformArgs?args ^-> Initializer
+                "initializers.Ones" => T<unit> ^-> Initializer
+                "initializers.Orthogonal" => OrthogonalArgs?args ^-> Initializer
+                "initializers.RandomNormal" => RandomNormalArgs?args ^-> Initializer
+                "initializers.RandomUniform" => RandomUniformArgs?args ^-> Initializer
+                "initializers.TruncatedNormal" => TruncatedNormalArgs?args ^-> Initializer
+                "initializers.VarianceScaling" => VarianceScalingArgs?config ^-> Initializer
+                "initializers.Zeros" => T<unit> ^-> Zeros
+
+                // Regularizers               
+                "regularizers.L1" => !?L1Config?config ^-> Regularizer
+                "regularizers.L1l2" => !?L1L2Config?config ^-> Regularizer
+                "regularizers.L2" => !?L2Config?config ^-> Regularizer
+
+                // Data / Creation
+                "data.Array" => (!|TensorContainer)?items ^-> Dataset[TensorContainer]
+                "data.Csv" => T<string>?source * CSVConfig?csvConfig ^-> CSVDataset
+                "data.Generator" => (T<unit> ^-> Iterator + T<Promise<_>>[Iterator])?generator ^-> Dataset[TensorContainer]
+                "data.Microphone" => !?MicrophoneConfig?microphoneConfig ^-> T<Promise<_>>[MicrophoneIterator]
+                "data.Webcam" => !?T<HTMLVideoElement>?webcamVideoElement * !?WebcamConfig?webcamConfig ^-> T<Promise<_>>[WebcamIterator]
+
+                // Data / Operations
+                "data.Zip" => T<obj>?datasets ^-> Dataset[TensorContainer]
+
+                // Util
+                "util.Assert" => T<bool>?expr * (T<unit> ^-> T<string>)?msg ^-> T<unit>
+                "util.CreateShuffledIndices" => T<int>?n ^-> T<Uint32Array>
+                "util.DecodeString" => T<Uint8Array>?bytes * !?T<string>?encoding ^-> T<string>
+                "util.EncodeString" => T<string>?s * !?T<string>?encoding ^-> T<Uint8Array>
+                "util.Fetch" => T<string>?path * !?T<Request>?requestInits ^-> T<Promise<Response>>
+                "util.Flatten" => (FlattenType + T<obj[]>)?arr * !?(!|FlattenType)?result * !?T<bool>?skipTypedArray ^-> !|FlattenType
+                "util.Now" => T<unit> ^-> T<int>
+                "util.Shuffle" => NumberTypedArrayOrObjArray?array ^-> T<unit>
+                "util.ShuffleCombo" => NumberTypedArrayOrObjArray?array * NumberTypedArrayOrObjArray?array2 ^-> T<unit>
+                "util.SizeFromShape" => Shape?shape ^-> T<int>
+
+                // Backend
+                "backend" => T<unit> ^-> KernelBackend
+                "getBackend" => T<unit> ^-> T<string>
+                "ready" => T<unit> ^-> T<Promise<unit>>
+                "registerBackend" => T<string>?name * (T<unit> ^-> KernelBackend + T<Promise<_>>[KernelBackend])?factory * !?T<int>?priority ^-> T<bool>
+                "removeBackend" => T<string>?name ^-> T<unit>
+                "setBackend" => T<string>?backendName ^-> T<Promise<bool>>
+
+                // Browser
+                "browser.Draw" => TensorOrTensorLike?image * T<HTMLCanvasElement>?canvas * !?DrawOptions?ptions ^-> T<unit>
+                "browser.FromPixels" => PixelDataOrImageDataOrHTMLElement?pixels * !?T<int>?numChannels ^-> Tensor
+                "browser.FromPixelsAsync" => PixelDataOrImageDataOrHTMLElement?pixels * !?T<int>?numChannels ^-> T<Promise<_>>[Tensor]
+                "browser.ToPixels" => TensorOrTensorLike?img * !?T<HTMLCanvasElement>?canvas ^-> T<Promise<Uint8ClampedArray>>
+
+                // Metrics
+                "metrics.BinaryAccuracy" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.BinaryCrossentropy" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.CategoricalAccuracy" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.CategoricalCrossentropy" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.CosineProximity" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.MeanAbsoluteError" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.MeanAbsolutePercentageError" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.MeanSquaredError" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.Precision" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.R2Score" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.Recall" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+                "metrics.SparseCategoricalAccuracy" => Tensor?yTrue * Tensor?yPred ^-> Tensor
+
+                // Callbacks
+                "callbacks.EarlyStopping" => !?EarlyStoppingCallbackArgs?args ^-> EarlyStopping
             ]
 
     let Assembly =
         Assembly [
             Namespace "WebSharper.TensorFlowJs" [
-                
+                TF
+                Tensor
+                TensorBuffer
+                Variable
+                GraphModel
+                LayersModel
+                Sequential
+                SymbolicTensor
+                Dataset
+                CSVDataset
+                Layer
+                Environment
+                Optimizer
+                Regularizer
+                Initializer
+                Constraint
+
+
+                // Enum
+                ParamType; Category; WeightGroup; Rank; WebGLChannels; ActivationIdentifier; Reduction
+
+                // Interface
+                CustomCallbackArgs; ModelPredictArgs; ModelEvaluateDatasetArgs; IOHandlerSync
+                IOHandler; ModelPredictConfig; SaveResult; ModelArtifacts; ModelArtifactsInfo
+                SaveConfig; WeightsManifestEntry; Quantization; TrainingConfig; ModelTensorInfo
+                WebGPUData; WebGLData; DataToGPUWebGLOption; DataTypeMap; TensorInfo;PrintFnType
+                SingleValueMap; Memory; TimingInfo; KernelInfo; BackendTimingInfo; MemoryInfo
+                GlorotNormalArgs; ConstantArgs; UnitNormArgs; MinMaxNormArgs; MaxNormArgs
+                DisposeResult; InputSpecArgs; Serializable; SerializableConstructor; RequestDetails
+                IORouterRegistry; ModelStoreManager; ModelJSON; WeightsManifestGroupConfig
+                EncodeWeightsResult; CompositeArrayBuffer; InputConfig; LoadOptions
+                WebcamIterator; MicrophoneIterator; CaptureResult; WebcamConfig
+                MicrophoneConfig; CSVConfig; DataSource; ByteChunkIterator; StringIterator
+                LazyIterator; DeepMapResult; ComputeGradientsResult; NamedTensor; GPUData; 
+                ConvLayerArgs; BaseConvLayerArgs; SpatialDropout1DLayerConfig; RepeatVectorLayerArgs
+                ReshapeLayerArgs; PermuteLayerArgs; FlattenLayerArgs; EmbeddingLayerArgs
+                DropoutLayerArgs; DenseLayerArgs; ActivationLayerArgs; PReLULayerArgs
+                ThresholdedReLULayerArgs; SoftmaxLayerArgs; ReLULayerArgs; LeakyReLULayerArgs
+                ELULayerArgs; RNNCell; Function; ProfileInfo; KernelBackend; InputSpec
+                InferenceModel; LSTMLayerArgs; SimpleRNNLayerArgs; StackedRNNCellsArgs
+                SimpleRNNCellLayerArgs; ConvRNN2DCellArgs; BaseRNNLayerArgs; LayerArgs
+                GlobalPooling2DLayerArgs; Pooling3DLayerArgs; Pooling2DLayerArgs
+                Pooling1DLayerArgs; LayerNormalizationLayerArgs; BatchNormalizationLayerArgs
+                DotLayerArgs; ConcatenateLayerArgs; UpSampling2DLayerArgs;SeparableConvLayerArgs
+                DepthwiseConv2DLayerArgs; Cropping2DLayerArgs; BaseConv; ConvLSTM2DCellArgs
+                BidirectionalLayerArgs; RNN; RandomWidthArgs; BaseRandomLayerArgs
+                CategoryEncodingArgs; ResizingArgs; CenterCropArgs;RescalingArgs
+                MaskingArgs; GaussianNoiseArgs; GaussianDropoutArgs; AlphaDropoutArgs
+                ZeroPadding2DLayerArgs; InputLayerArgs; RNNLayerArgs; WrapperLayerArgs
+                GRUCellLayerArgs; GRULayerArgs; LSTMCellLayerArgs; ConvLSTM2DArgs
+                ConvRNN2DLayerArgs; RepeatVector; Permute; Flatten; Embedding; Dropout
+                Dense; Activation; ThresholdedReLU; Softmax; ReLU; PReLU; LeakyReLU
+                ELU; UpSampling2D; SeparableConv2D; SeparableConv; DepthwiseConv2D
+                Cropping2D; Conv3D; Conv2DTranspose; Conv2D; Conv1D; Conv; MaxPooling1D
+                GlobalMaxPooling2D; GlobalMaxPooling1D; GlobalAveragePooling2D; 
+                GlobalPooling2D; GlobalAveragePooling1D; GlobalPooling1D; AveragePooling3D
+                Pooling3D; AveragePooling2D; Pooling2D; AveragePooling1D; Pooling1D
+                LayerNormalization; BatchNormalization; Multiply; Minimum; Maximum
+                Dot; Concatenate; Average; Add; Merge; SpatialDropout1D; Reshape
+                RMSPropOptimizer; AdadeltaOptimizer; AdamOptimizer; AdagradOptimizer
+                MomentumOptimizer; SGDOptimizer; RandomWidth; CategoryEncoding; Resizing
+                CenterCrop; Rescaling; Masking; GaussianNoise; GaussianDropout; AlphaDropout
+                ZeroPadding2D; InputLayer; TimeDistributed; Bidirectional; Wrapper
+                StackedRNNCells; SimpleRNNCell; SimpleRNN; ConvLSTM2DCell; LSTMCell
+                EarlyStopping; EarlyStoppingCallbackArgs; PixelData; DrawOptions
+                ContextOptions; WebGLContextAttributes; ImageOptions; L2Config; L1L2Config
+                L1Config; Zeros; VarianceScalingArgs; TruncatedNormalArgs; RandomUniformArgs
+                RandomNormalArgs; OrthogonalArgs; LeCunUniformArgs; LeCunNormalArgs
+                IdentityArgs; HeUniformArgs; HeNormalArgs; GlorotUniformArgs; Engine
+                CustomGradientFuncResult; ValueAndGradsResultReturn; VariableGradsResult
+                ValueAndGradResultReturn; MeshgridThridParameter; UniqueResult
+                TopkResult; MomentsResult; Platform; LayerVariable; SequentialArgs
+                History; BaseCallback; ModelFitDatasetArgs; ModelFitArgs; ModelEvaluateArgs
+                ModelCompileArgs; AdamaxOptimizer; ContainerArgs
             ]
         ]
 
 [<Sealed>]
-type Extension() =
+type Extension() =  
     interface IExtension with
         member ext.Assembly =
             Definition.Assembly
