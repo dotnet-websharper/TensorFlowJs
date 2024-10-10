@@ -5,7 +5,7 @@ open WebSharper.JavaScript
 open WebSharper.UI
 open WebSharper.UI.Client
 open WebSharper.UI.Templating
-open WebSharper.TensorFlowJs
+(*open WebSharper.TensorFlowJs*)
 
 [<JavaScript>]
 module Client =
