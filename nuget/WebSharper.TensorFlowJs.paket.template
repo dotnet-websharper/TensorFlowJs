@@ -15,7 +15,6 @@ tags
     Web JavaScript F# C# TensorFlow ML
 files
     ../WebSharper.TensorFlowJs/bin/Release/netstandard2.0/WebSharper.TensorFlowJs.dll ==> lib/netstandard2.0
-    ../WebSharper.TensorFlowJs/bin/Release/netstandard2.0/WebSharper.TensorFlowJs.websharper ==> lib/netstandard2.0
     ../WebSharper.TensorFlowJs/bin/Release/netstandard2.0/WebSharper.TensorFlowJs.xml ==> lib/netstandard2.0
 dependencies
         WebSharper ~> LOCKEDVERSION:[3]
