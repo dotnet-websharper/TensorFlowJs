@@ -11,7 +11,12 @@ open WebSharper.TensorFlowJs.MainClasses
 module Definition =
     [<AutoOpen>]
     module TFCore = 
-        let TensorOrTensorLike = Tensor + TensorLike
+        // A union-typed parameter makes WebSharper emit one overload per
+        // constituent, and the product across several union parameters explodes
+        // (e.g. `basicLSTMCell` has six of them -> 10^6 overloads). Keep the
+        // union to the two common cases - a Tensor or a flat number array - so
+        // the generated surface stays small.
+        let TensorOrTensorLike = Tensor + T<float[]>
 
         let MomentsResult = 
             Pattern.Config "MomentsResult" {
@@ -73,6 +78,7 @@ module Definition =
         
         let TF = 
             Class "Tf"
+            |> Import "*" "@tensorflow/tfjs"
             |+> Static [
                 // Tensors / Creation
                 "tensor" => TensorValuesType?values * !?Shape?shape * !?DataType?dtype ^-> Tensor
@@ -162,7 +168,7 @@ module Definition =
 
                 // Models / Serialization
                 Generic - fun t ->
-                    "registerClass" => SerializableConstructor[t]?cls * !?T<string>?pkg * !?T<string>?name ^-> SerializableConstructor
+                    "registerClass" => SerializableConstructor[t]?cls * !?T<string>?pkg * !?T<string>?name ^-> SerializableConstructor[t]
 
                 // Models / Op Registry
                 "deregisterOp" => T<string>?name  ^-> T<unit>
@@ -170,102 +176,166 @@ module Definition =
                 "registerOp" => T<string>?name  * OpExecutor?opFunc ^-> T<unit>
 
                 // Layers / Advanced Activation
-                "layers.Elu" => !?ELULayerArgs?args ^-> ELU
-                "layers.LeakyReLU" => !?LeakyReLULayerArgs?args ^-> LeakyReLU
-                "layers.Prelu" => !?PReLULayerArgs?args ^-> PReLU
-                "layers.ReLU" => !?ReLULayerArgs?args ^-> ReLU
-                "layers.Softmax" => !?SoftmaxLayerArgs?args ^-> Softmax
-                "layers.ThresholdedReLU" => !?ThresholdedReLULayerArgs?args ^-> ThresholdedReLU
+                "layers.elu" => !?ELULayerArgs?args ^-> ELU
+                |> WithSourceName "Layers_Elu"
+                "layers.leakyReLU" => !?LeakyReLULayerArgs?args ^-> LeakyReLU
+                |> WithSourceName "Layers_LeakyReLU"
+                "layers.prelu" => !?PReLULayerArgs?args ^-> PReLU
+                |> WithSourceName "Layers_Prelu"
+                "layers.reLU" => !?ReLULayerArgs?args ^-> ReLU
+                |> WithSourceName "Layers_ReLU"
+                "layers.softmax" => !?SoftmaxLayerArgs?args ^-> Softmax
+                |> WithSourceName "Layers_Softmax"
+                "layers.thresholdedReLU" => !?ThresholdedReLULayerArgs?args ^-> ThresholdedReLU
+                |> WithSourceName "Layers_ThresholdedReLU"
 
                 // Layers / Basic
-                "layers.Activation" => ActivationLayerArgs?args ^-> Activation
-                "layers.Dense" => DenseLayerArgs?args ^-> Dense
-                "layers.Dropout" => DropoutLayerArgs?args ^-> Dropout
-                "layers.Embedding" => EmbeddingLayerArgs?args ^-> Embedding
-                "layers.Flatten" => !?FlattenLayerArgs?args ^-> Flatten
-                "layers.Permute" => PermuteLayerArgs?args ^-> Permute
-                "layers.RepeatVector" => RepeatVectorLayerArgs?args ^-> RepeatVector
-                "layers.Reshape" => ReshapeLayerArgs?args ^-> Reshape
-                "layers.SpatialDropout1d" => SpatialDropout1DLayerConfig?args ^-> SpatialDropout1D
+                "layers.activation" => ActivationLayerArgs?args ^-> Activation
+                |> WithSourceName "Layers_Activation"
+                "layers.dense" => DenseLayerArgs?args ^-> Dense
+                |> WithSourceName "Layers_Dense"
+                "layers.dropout" => DropoutLayerArgs?args ^-> Dropout
+                |> WithSourceName "Layers_Dropout"
+                "layers.embedding" => EmbeddingLayerArgs?args ^-> Embedding
+                |> WithSourceName "Layers_Embedding"
+                "layers.flatten" => !?FlattenLayerArgs?args ^-> Flatten
+                |> WithSourceName "Layers_Flatten"
+                "layers.permute" => PermuteLayerArgs?args ^-> Permute
+                |> WithSourceName "Layers_Permute"
+                "layers.repeatVector" => RepeatVectorLayerArgs?args ^-> RepeatVector
+                |> WithSourceName "Layers_RepeatVector"
+                "layers.reshape" => ReshapeLayerArgs?args ^-> Reshape
+                |> WithSourceName "Layers_Reshape"
+                "layers.spatialDropout1d" => SpatialDropout1DLayerConfig?args ^-> SpatialDropout1D
+                |> WithSourceName "Layers_SpatialDropout1d"
     
                 // Layers / Convolutional
-                "layers.Conv1d" => ConvLayerArgs?args ^-> Conv1D
-                "layers.Conv2d" => ConvLayerArgs?args ^-> Conv2D
-                "layers.Conv2dTranspose" => ConvLayerArgs?args ^-> Conv2DTranspose
-                "layers.Conv3d" => ConvLayerArgs?args ^-> Conv3D
-                "layers.Cropping2D" => Cropping2DLayerArgs?args ^-> Cropping2D
-                "layers.DepthwiseConv2d" => DepthwiseConv2DLayerArgs?args ^-> DepthwiseConv2D
-                "layers.SeparableConv2d" => SeparableConvLayerArgs?args ^-> SeparableConv2D
-                "layers.UpSampling2d" => UpSampling2DLayerArgs?args ^-> UpSampling2D
+                "layers.conv1d" => ConvLayerArgs?args ^-> Conv1D
+                |> WithSourceName "Layers_Conv1d"
+                "layers.conv2d" => ConvLayerArgs?args ^-> Conv2D
+                |> WithSourceName "Layers_Conv2d"
+                "layers.conv2dTranspose" => ConvLayerArgs?args ^-> Conv2DTranspose
+                |> WithSourceName "Layers_Conv2dTranspose"
+                "layers.conv3d" => ConvLayerArgs?args ^-> Conv3D
+                |> WithSourceName "Layers_Conv3d"
+                "layers.cropping2D" => Cropping2DLayerArgs?args ^-> Cropping2D
+                |> WithSourceName "Layers_Cropping2D"
+                "layers.depthwiseConv2d" => DepthwiseConv2DLayerArgs?args ^-> DepthwiseConv2D
+                |> WithSourceName "Layers_DepthwiseConv2d"
+                "layers.separableConv2d" => SeparableConvLayerArgs?args ^-> SeparableConv2D
+                |> WithSourceName "Layers_SeparableConv2d"
+                "layers.upSampling2d" => UpSampling2DLayerArgs?args ^-> UpSampling2D
+                |> WithSourceName "Layers_UpSampling2d"
 
                 // Layers / Merge
-                "layers.Add" => !?LayerArgs?args ^-> Add
-                "layers.Average" => !?LayerArgs?args ^-> Average
-                "layers.Concatenate" => !?ConcatenateLayerArgs?args ^-> Concatenate
-                "layers.Maximum" => !?LayerArgs?args ^-> Maximum
-                "layers.Minimum" => !?LayerArgs?args ^-> Minimum
-                "layers.Multiply" => !?LayerArgs?args ^-> Multiply
+                "layers.add" => !?LayerArgs?args ^-> Add
+                |> WithSourceName "Layers_Add"
+                "layers.average" => !?LayerArgs?args ^-> Average
+                |> WithSourceName "Layers_Average"
+                "layers.concatenate" => !?ConcatenateLayerArgs?args ^-> Concatenate
+                |> WithSourceName "Layers_Concatenate"
+                "layers.maximum" => !?LayerArgs?args ^-> Maximum
+                |> WithSourceName "Layers_Maximum"
+                "layers.minimum" => !?LayerArgs?args ^-> Minimum
+                |> WithSourceName "Layers_Minimum"
+                "layers.multiply" => !?LayerArgs?args ^-> Multiply
+                |> WithSourceName "Layers_Multiply"
 
                 // Layers / Normalization
-                "layers.BatchNormalization" => !?BatchNormalizationLayerArgs?args ^-> BatchNormalization
-                "layers.LayerNormalization" => !?LayerNormalizationLayerArgs?args ^-> LayerNormalization
+                "layers.batchNormalization" => !?BatchNormalizationLayerArgs?args ^-> BatchNormalization
+                |> WithSourceName "Layers_BatchNormalization"
+                "layers.layerNormalization" => !?LayerNormalizationLayerArgs?args ^-> LayerNormalization
+                |> WithSourceName "Layers_LayerNormalization"
 
                 // Layers / Pooling
-                "layers.AveragePooling1d" => Pooling1DLayerArgs?args ^-> AveragePooling1D 
-                "layers.AveragePooling2d" =>  Pooling2DLayerArgs?args ^-> AveragePooling2D 
-                "layers.AveragePooling3d" =>  Pooling3DLayerArgs?args ^-> AveragePooling3D 
-                "layers.GlobalAveragePooling1d" => !?LayerArgs?args ^-> GlobalAveragePooling1D 
-                "layers.GlobalAveragePooling2d" => GlobalPooling2DLayerArgs?args ^-> GlobalAveragePooling2D 
-                "layers.GlobalMaxPooling1d" =>  !?LayerArgs?args ^-> GlobalMaxPooling1D 
-                "layers.GlobalMaxPooling2d" =>  GlobalPooling2DLayerArgs?args ^-> GlobalMaxPooling2D 
-                "layers.MaxPooling1d" =>  Pooling1DLayerArgs?args ^-> MaxPooling1D 
-                "layers.MaxPooling2d" =>  Pooling2DLayerArgs?args ^-> MaxPooling2D 
-                "layers.MaxPooling3d" =>  Pooling3DLayerArgs?args ^-> MaxPooling3D 
+                "layers.averagePooling1d" => Pooling1DLayerArgs?args ^-> AveragePooling1D 
+                |> WithSourceName "Layers_AveragePooling1d"
+                "layers.averagePooling2d" => Pooling2DLayerArgs?args ^-> AveragePooling2D 
+                |> WithSourceName "Layers_AveragePooling2d"
+                "layers.averagePooling3d" => Pooling3DLayerArgs?args ^-> AveragePooling3D 
+                |> WithSourceName "Layers_AveragePooling3d"
+                "layers.globalAveragePooling1d" => !?LayerArgs?args ^-> GlobalAveragePooling1D 
+                |> WithSourceName "Layers_GlobalAveragePooling1d"
+                "layers.globalAveragePooling2d" => GlobalPooling2DLayerArgs?args ^-> GlobalAveragePooling2D 
+                |> WithSourceName "Layers_GlobalAveragePooling2d"
+                "layers.globalMaxPooling1d" => !?LayerArgs?args ^-> GlobalMaxPooling1D 
+                |> WithSourceName "Layers_GlobalMaxPooling1d"
+                "layers.globalMaxPooling2d" => GlobalPooling2DLayerArgs?args ^-> GlobalMaxPooling2D 
+                |> WithSourceName "Layers_GlobalMaxPooling2d"
+                "layers.maxPooling1d" => Pooling1DLayerArgs?args ^-> MaxPooling1D 
+                |> WithSourceName "Layers_MaxPooling1d"
+                "layers.maxPooling2d" => Pooling2DLayerArgs?args ^-> MaxPooling2D 
+                |> WithSourceName "Layers_MaxPooling2d"
+                "layers.maxPooling3d" => Pooling3DLayerArgs?args ^-> MaxPooling3D 
+                |> WithSourceName "Layers_MaxPooling3d"
                 
                 // Layers / Recurrent
-                "layers.ConvLstm2d" => ConvLSTM2DArgs?args ^-> ConvLSTM2D 
-                "layers.ConvLstm2dCell" => ConvLSTM2DCellArgs?args ^-> ConvLSTM2DCell
-                "layers.Gru" => GRULayerArgs?args ^-> GRU
-                "layers.GruCell" => GRUCellLayerArgs?args ^-> GRUCell
-                "layers.Lstm" => LSTMLayerArgs?args ^-> LSTM
-                "layers.LstmCell" => LSTMCellLayerArgs?args ^-> LSTMCell
-                "layers.Rnn" => RNNLayerArgs?args ^-> RNN
-                "layers.SimpleRNN" => SimpleRNNLayerArgs?args ^-> SimpleRNN
-                "layers.SimpleRNNCell" => SimpleRNNCellLayerArgs?args ^-> SimpleRNNCell
-                "layers.StackedRNNCells" => StackedRNNCellsArgs?args ^-> StackedRNNCells
+                "layers.convLstm2d" => ConvLSTM2DArgs?args ^-> ConvLSTM2D 
+                |> WithSourceName "Layers_ConvLstm2d"
+                "layers.convLstm2dCell" => ConvLSTM2DCellArgs?args ^-> ConvLSTM2DCell
+                |> WithSourceName "Layers_ConvLstm2dCell"
+                "layers.gru" => GRULayerArgs?args ^-> GRU
+                |> WithSourceName "Layers_Gru"
+                "layers.gruCell" => GRUCellLayerArgs?args ^-> GRUCell
+                |> WithSourceName "Layers_GruCell"
+                "layers.lstm" => LSTMLayerArgs?args ^-> LSTM
+                |> WithSourceName "Layers_Lstm"
+                "layers.lstmCell" => LSTMCellLayerArgs?args ^-> LSTMCell
+                |> WithSourceName "Layers_LstmCell"
+                "layers.rnn" => RNNLayerArgs?args ^-> RNN
+                |> WithSourceName "Layers_Rnn"
+                "layers.simpleRNN" => SimpleRNNLayerArgs?args ^-> SimpleRNN
+                |> WithSourceName "Layers_SimpleRNN"
+                "layers.simpleRNNCell" => SimpleRNNCellLayerArgs?args ^-> SimpleRNNCell
+                |> WithSourceName "Layers_SimpleRNNCell"
+                "layers.stackedRNNCells" => StackedRNNCellsArgs?args ^-> StackedRNNCells
+                |> WithSourceName "Layers_StackedRNNCells"
 
                 // Layers / Wrapper
-                "layers.Bidirectional" => BidirectionalLayerArgs?args ^-> Bidirectional
-                "layers.TimeDistributed" => WrapperLayerArgs?args ^-> TimeDistributed
+                "layers.bidirectional" => BidirectionalLayerArgs?args ^-> Bidirectional
+                |> WithSourceName "Layers_Bidirectional"
+                "layers.timeDistributed" => WrapperLayerArgs?args ^-> TimeDistributed
+                |> WithSourceName "Layers_TimeDistributed"
 
                 // Layers / Inputs
-                "layers.InputLayer" => InputLayerArgs?args ^-> InputLayer
+                "layers.inputLayer" => InputLayerArgs?args ^-> InputLayer
+                |> WithSourceName "Layers_InputLayer"
 
                 // Layers / Padding
-                "layers.ZeroPadding2d" => !?ZeroPadding2DLayerArgs?args ^-> ZeroPadding2D
+                "layers.zeroPadding2d" => !?ZeroPadding2DLayerArgs?args ^-> ZeroPadding2D
+                |> WithSourceName "Layers_ZeroPadding2d"
 
                 // Layers / Noise
-                "layers.AlphaDropout" => AlphaDropoutArgs?args ^-> AlphaDropout
-                "layers.GaussianDropout" => GaussianDropoutArgs?args ^-> GaussianDropout
-                "layers.GaussianNoise" => GaussianNoiseArgs?args ^-> GaussianNoise
+                "layers.alphaDropout" => AlphaDropoutArgs?args ^-> AlphaDropout
+                |> WithSourceName "Layers_AlphaDropout"
+                "layers.gaussianDropout" => GaussianDropoutArgs?args ^-> GaussianDropout
+                |> WithSourceName "Layers_GaussianDropout"
+                "layers.gaussianNoise" => GaussianNoiseArgs?args ^-> GaussianNoise
+                |> WithSourceName "Layers_GaussianNoise"
 
                 // Layers / Mask
-                "layers.Masking" => MaskingArgs?args ^-> Masking
+                "layers.masking" => MaskingArgs?args ^-> Masking
+                |> WithSourceName "Layers_Masking"
 
                 // Layers / Rescaling
-                "layers.Rescaling" => !?RescalingArgs?args ^-> Rescaling
+                "layers.rescaling" => !?RescalingArgs?args ^-> Rescaling
+                |> WithSourceName "Layers_Rescaling"
 
                 // Layers / CenterCrop
-                "layers.Rescaling" => !?CenterCropArgs?args ^-> CenterCrop
+                "layers.centerCrop" => !?CenterCropArgs?args ^-> CenterCrop
+                |> WithSourceName "Layers_CenterCrop"
 
                 // Layers / Resizing
-                "layers.Resizing" => !?ResizingArgs?args ^-> Resizing
+                "layers.resizing" => !?ResizingArgs?args ^-> Resizing
+                |> WithSourceName "Layers_Resizing"
 
                 // Layers / CategoryEncoding
-                "layers.CategoryEncoding" => CategoryEncodingArgs?args ^-> CategoryEncoding
+                "layers.categoryEncoding" => CategoryEncodingArgs?args ^-> CategoryEncoding
+                |> WithSourceName "Layers_CategoryEncoding"
 
                 //Layers / RandomWidth
-                "layers.RandomWidth" => RandomWidthArgs?args ^-> RandomWidth
+                "layers.randomWidth" => RandomWidthArgs?args ^-> RandomWidth
+                |> WithSourceName "Layers_RandomWidth"
 
                 // Operations / Arithmetic
                 "add" => TensorOrTensorLike?a * TensorOrTensorLike?b ^-> Tensor
@@ -662,7 +732,7 @@ module Definition =
                 MomentumOptimizer; SGDOptimizer; RandomWidth; CategoryEncoding; Resizing
                 CenterCrop; Rescaling; Masking; GaussianNoise; GaussianDropout; AlphaDropout
                 ZeroPadding2D; InputLayer; TimeDistributed; Bidirectional; Wrapper
-                StackedRNNCells; SimpleRNNCell; SimpleRNN; ConvLSTM2DCell; LSTMCell
+                StackedRNNCells; SimpleRNNCell; SimpleRNN; ConvLSTM2DCell; LSTM; LSTMCell; GRU; GRUCell
                 EarlyStopping; EarlyStoppingCallbackArgs; PixelData; DrawOptions
                 ContextOptions; WebGLContextAttributes; ImageOptions; L2Config; L1L2Config
                 L1Config; Zeros; VarianceScalingArgs; TruncatedNormalArgs; RandomUniformArgs
@@ -673,6 +743,8 @@ module Definition =
                 TopkResult; MomentsResult; Platform; LayerVariable; SequentialArgs
                 History; BaseCallback; ModelFitDatasetArgs; ModelFitArgs; ModelEvaluateArgs
                 ModelCompileArgs; AdamaxOptimizer; ContainerArgs; Node; NodeArgs
+                GraphNode; OpMapper; ParamMapper; InputParamMapper; AttrParamMapper
+                ValueType; ConvLSTM2D; ConvRNN2D; MaxPooling2D; MaxPooling3D
             ]
         ]
 

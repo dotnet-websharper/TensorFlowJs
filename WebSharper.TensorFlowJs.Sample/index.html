@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSharper.TensorFlowJs — sample</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23ff6f00'/%3E%3Cpath d='M8 2 2 5v6l6 3 6-3V5z' fill='white'/%3E%3C/svg%3E" />
+    <script>
+        // Apply a previously chosen theme before first paint. Light is the
+        // default; the key is shared with Client.fs (themeStorageKey).
+        try {
+            var t = localStorage.getItem('websharper-tensorflowjs-theme');
+            if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+        } catch (e) { }
+    </script>
+    <link rel="stylesheet" href="site.css" />
+    <!-- TensorFlow.js is bundled from the npm package; the WebSharper head is folded in here. -->
+    <!-- ws-head -->
+</head>
+<body>
+    <header class="app-header">
+        <div class="app-titles">
+            <h1>WebSharper.TensorFlowJs</h1>
+            <p>TensorFlow.js 4 bindings for F# — with <a href="https://websharper.com">WebSharper</a></p>
+        </div>
+        <div class="app-actions">
+            <button class="btn theme-toggle" ws-onclick="ToggleTheme" title="Switch between the light and dark theme">
+                <span>${themeLabel}</span>
+            </button>
+            <a class="app-source" href="https://github.com/dotnet-websharper/TensorFlowJs">Source</a>
+        </div>
+    </header>
+
+    <main class="page">
+        <p class="notice">${notice}</p>
+
+        <section class="card">
+            <header class="card-header">
+                <h2>Tensors &amp; operations</h2>
+                <p>
+                    Create a tensor with <code>Tf.Tensor2d</code> and run the core
+                    TensorFlow.js ops: <code>Tf.Add</code>, <code>Tf.Mul</code>,
+                    <code>Tf.MatMul</code>, <code>Tf.Relu</code>, <code>Tf.Softmax</code>,
+                    <code>Tf.Sum</code> and <code>Tf.Mean</code>. Results are read back
+                    with <code>ArraySync()</code>.
+                </p>
+            </header>
+            <div class="toolbar">
+                <label class="field">values <input ws-var="Values" placeholder="1, 2, 3, 4" /></label>
+                <label class="field">shape <input ws-var="Shape" placeholder="2, 2" /></label>
+            </div>
+            <div class="toolbar">
+                <button class="btn btn-primary" ws-onclick="Create">Create</button>
+                <button class="btn" ws-onclick="Add">a + b</button>
+                <button class="btn" ws-onclick="Mul">a * b</button>
+                <button class="btn" ws-onclick="MatMul">a · b</button>
+                <button class="btn" ws-onclick="Relu">relu(a)</button>
+                <button class="btn" ws-onclick="Softmax">softmax(a)</button>
+                <button class="btn" ws-onclick="Sum">sum(a)</button>
+                <button class="btn" ws-onclick="Mean">mean(a)</button>
+                <button class="btn" ws-onclick="Dispose">dispose</button>
+            </div>
+            <pre class="readout">${tensorOut}</pre>
+        </section>
+
+        <section class="card">
+            <header class="card-header">
+                <h2>Train a tiny model</h2>
+                <p>
+                    A <code>Tf.Sequential</code> model with two <code>Layers_Dense</code>
+                    layers, compiled with the Adam optimizer and fitted to
+                    <code>y = 2x + 1</code>. The final loss comes from the training
+                    <code>History</code>; the prediction is a fresh <code>Predict</code>.
+                </p>
+            </header>
+            <div class="toolbar">
+                <button class="btn btn-primary" ws-onclick="Train">Train (200 epochs)</button>
+                <label class="field">predict x = <input ws-var="PredictX" placeholder="3" /></label>
+                <button class="btn" ws-onclick="Predict">Predict</button>
+            </div>
+            <pre class="readout">${modelOut}</pre>
+        </section>
+
+        <section class="card">
+            <header class="card-header">
+                <h2>Runtime</h2>
+                <p>
+                    <code>Tf.GetBackend()</code> and <code>Tf.Memory()</code> report the
+                    active backend and the live tensor accounting.
+                </p>
+            </header>
+            <dl class="readout stats">
+                <div><dt>backend</dt><dd>${backend}</dd></div>
+                <div><dt>tensors</dt><dd>${numTensors}</dd></div>
+                <div><dt>bytes</dt><dd>${numBytes}</dd></div>
+            </dl>
+            <div class="toolbar">
+                <button class="btn" ws-onclick="RefreshRuntime">Refresh</button>
+            </div>
+        </section>
+    </main>
+
+    <script type="text/javascript" src="Scripts/WebSharper.TensorFlowJs.Sample.min.js"></script>
+</body>
+</html>

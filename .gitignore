@@ -6,6 +6,7 @@
 /obj
 /node_modules
 /build/
+/dist/
 /packages/
 /tools/packages/
 /.fake/
@@ -20,5 +21,5 @@ websharper.log
 /*/Properties
 /*/wwwroot/Content
 /*/wwwroot/dist
+/*/build/
 /*/.vs
-

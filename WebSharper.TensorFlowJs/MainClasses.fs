@@ -359,12 +359,6 @@ module TensorFlow =
             Optional = []
         }
 
-    SymbolicTensor
-    |+> Static [
-                Constructor (DataType?dtype * Shape?shape * Layer?sourceLayer * 
-                !|SymbolicTensor * Kwargs?callArgs * !?T<string>?name * T<int>?outputTensorIndex)
-        ]|> ignore
-
     let Node = 
         Class "Node"
         |=> Inherits NodeArgs
@@ -645,12 +639,6 @@ module TensorFlow =
         }
 
     let SymbolicTensorArray = !| SymbolicTensor
-
-    SymbolicTensor
-        |+> Static [
-            Constructor (DataType?dtype * Shape?shape * Layer?sourceLayer * SymbolicTensorArray?inputs * T<obj>?callArgs * !? T<string>?name * !? T<int>?outputTensorIndex)
-                
-        ] |> ignore
 
     let ContainerArgs =
         Pattern.Config "ContainerArgs" {
