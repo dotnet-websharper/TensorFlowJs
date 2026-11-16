@@ -9,7 +9,6 @@ storage: none
 nuget WebSharper prerelease
 nuget WebSharper.FSharp prerelease
 nuget WebSharper.UI prerelease
-nuget WebSharper.WebGPU prerelease
 
 group wsbuild
     git https://github.com/dotnet-websharper/build-script websharper80

@@ -695,6 +695,7 @@ module Definition =
                 IOHandler; ModelPredictConfig; SaveResult; ModelArtifacts; ModelArtifactsInfo
                 SaveConfig; WeightsManifestEntry; Quantization; TrainingConfig; ModelTensorInfo
                 WebGPUData; WebGLData; DataToGPUWebGLOption; DataTypeMap; TensorInfo;PrintFnType
+                GPUBuffer
                 SingleValueMap; Memory; TimingInfo; KernelInfo; BackendTimingInfo; MemoryInfo
                 GlorotNormalArgs; ConstantArgs; UnitNormArgs; MinMaxNormArgs; MaxNormArgs
                 DisposeResult; InputSpecArgs; Serializable; SerializableConstructor; RequestDetails

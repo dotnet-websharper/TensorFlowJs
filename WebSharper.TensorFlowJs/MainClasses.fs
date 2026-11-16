@@ -37,7 +37,7 @@ module TensorFlow =
             ]
             Optional = [
                 "texture", T<WebGL.Texture>
-                "buffer", T<WebGPU.GPUBuffer>
+                "buffer", GPUBuffer.Type
                 "texShape", !|T<int>
             ]
         }

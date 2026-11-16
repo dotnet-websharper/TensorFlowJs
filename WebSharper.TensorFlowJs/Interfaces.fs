@@ -108,6 +108,11 @@ module Interface =
             ]
         }
 
+    // `WebSharper.WebGPU`'s 10.x package ships metadata in a binary format the
+    // WebSharper 10.x compiler cannot read, so the binding declares the single
+    // WebGPU type it needs locally instead of depending on that package.
+    let GPUBuffer = Class "GPUBuffer"
+
     let WebGLData = Pattern.Config "WebGLData" {
         Required = [
             "texture", T<WebGL.Texture>
@@ -120,7 +125,7 @@ module Interface =
 
     let WebGPUData = Pattern.Config "WebGPUData" {
         Required = [
-            "buffer", T<WebGPU.GPUBuffer>
+            "buffer", GPUBuffer.Type
         ]
         Optional = [
             "zeroCopy", T<bool>

@@ -19,4 +19,3 @@ files
     ../WebSharper.TensorFlowJs/bin/Release/netstandard2.0/WebSharper.TensorFlowJs.xml ==> lib/netstandard2.0
 dependencies
         WebSharper ~> LOCKEDVERSION:[3]
-        WebSharper.WebGPU ~> LOCKEDVERSION:[3]
